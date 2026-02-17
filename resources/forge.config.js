@@ -14,19 +14,20 @@ module.exports = {
         "schemes": "logseq"
       }
     ],
-    osxSign: {
-      identity: 'Developer ID Application: Tiansheng Qin',
-      'hardened-runtime': true,
-      entitlements: 'entitlements.plist',
-      'entitlements-inherit': 'entitlements.plist',
-      'signature-flags': 'library'
-    },
-    osxNotarize: process.env['APPLE_ID'] ? {
-      tool: 'notarytool',
-      appleId: process.env['APPLE_ID'],
-      appleIdPassword: process.env['APPLE_ID_PASSWORD'],
-      teamId: process.env['APPLE_TEAM_ID']
-    } : undefined,
+    // Code signing disabled for personal use build
+    // osxSign: {
+    //   identity: 'Developer ID Application: Tiansheng Qin',
+    //   'hardened-runtime': true,
+    //   entitlements: 'entitlements.plist',
+    //   'entitlements-inherit': 'entitlements.plist',
+    //   'signature-flags': 'library'
+    // },
+    // osxNotarize: process.env['APPLE_ID'] ? {
+    //   tool: 'notarytool',
+    //   appleId: process.env['APPLE_ID'],
+    //   appleIdPassword: process.env['APPLE_ID_PASSWORD'],
+    //   teamId: process.env['APPLE_TEAM_ID']
+    // } : undefined,
   },
   makers: [
     {

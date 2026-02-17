@@ -44,7 +44,7 @@
   <rect x="0.75" y="0.75" width="1022.5" height="1022.5" rx="223.5" ry="223.5" fill="none" stroke="url(#borderGrad)" stroke-width="1.5"/>
 
   <!-- Logseq double bracket symbol -->
-  <g transform="translate(512, 512)" fill="none" stroke="#1d1d1f" stroke-width="44" stroke-linecap="round" stroke-linejoin="round" filter="url(#symbolShadow)">
+  <g transform="translate(512, 512) scale(0.83)" fill="none" stroke="#1d1d1f" stroke-width="44" stroke-linecap="round" stroke-linejoin="round" filter="url(#symbolShadow)">
 
     <!-- Outer left [ -->
     <path d="
