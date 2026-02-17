@@ -10,20 +10,21 @@ html[data-theme=light] {
 }
 
 html[data-theme=dark] {
-  --accent: var(--rx-gray-12-hsl);
-  --accent-foreground: var(--rx-gray-02-hsl);
-  --primary-foreground: 0 0% 22%;
-  --background: 0 0% 11%;
-  --foreground: 0 0% 95%;
-  --card: 0 0% 11%;
-  --card-foreground: 0 0% 95%;
-  --secondary: 0 0% 20%;
-  --secondary-foreground: 0 0% 98%;
-  --border: 0 0% 16%;
-  --muted: 0 0% 15%;
-  --popover: 0 0% 7%;
-  --popover-foreground: 0 0 95%;
-  --input: 0 0% 16%;
+  --accent: 216 6% 16.5%;
+  --accent-foreground: 210 5% 94%;
+  --primary-foreground: 220 8% 10.5%;
+  --background: 220 8% 10.5%;
+  --foreground: 210 5% 94%;
+  --card: 220 8% 10.5%;
+  --card-foreground: 210 5% 94%;
+  --secondary: 218 7% 13.5%;
+  --secondary-foreground: 210 5% 92%;
+  --border: 215 5% 19%;
+  --muted: 216 6% 16.5%;
+  --muted-foreground: 210 3% 56%;
+  --popover: 218 7% 13.5%;
+  --popover-foreground: 210 5% 94%;
+  --input: 214 5% 21.5%;
 }
 
 html {
@@ -121,15 +122,15 @@ html[data-theme=light] {
   }
 
   .extensions__pdf-container {
-    --lx-pdf-container-dark-bg: var(--lx-gray-11, #042f3c);
+    --lx-pdf-container-dark-bg: var(--lx-gray-11, hsl(210, 10%, 15%));
   }
 }
 
 html[data-theme=dark] {
-  background-color: #161616;
+  background-color: hsl(220, 8%, 10.5%);
 
   &[data-color=logseq] {
-    @apply bg-[#002b36];
+    background-color: var(--ls-primary-background-color, hsl(220, 8%, 10.5%));
 
     .ui__modal-panel {
       @apply border-accent-01;
@@ -157,15 +158,15 @@ html[data-theme=dark] {
 
     .ui__button {
       &.as-outline {
-        --accent: 192 100% 12%;
+        --accent: 216 6% 16.5%;
       }
     }
 
     div[data-radix-menu-content],
     .ui__select-content {
-      --accent: 190 100% 15%;
-      --muted: 192 100% 13%;
-      --secondary-foreground: 0 0% 82%;
+      --accent: 218 7% 16%;
+      --muted: 216 6% 16.5%;
+      --secondary-foreground: 210 5% 92%;
     }
 
     .ui__button {
@@ -179,11 +180,11 @@ html[data-theme=dark] {
     }
 
     .ui__calendar {
-      --accent: 196 100% 15%;
+      --accent: 216 6% 16.5%;
     }
 
     .rc-datepicker {
-      --accent: 200 97% 37%;
+      --accent: 213 15% 52%;
     }
 
     .cp__cmdk {
