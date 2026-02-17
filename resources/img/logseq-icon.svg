@@ -1,37 +1,66 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
   <defs>
-    <!-- Background gradient: top to bottom, gray-blue -->
-    <linearGradient id="bgGradient" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#6e849a"/>
-      <stop offset="100%" stop-color="#435a70"/>
+    <!-- Dark background gradient with subtle top-light -->
+    <linearGradient id="bgGradient" x1="0.3" y1="0" x2="0.7" y2="1">
+      <stop offset="0%" stop-color="#2a2a2a"/>
+      <stop offset="100%" stop-color="#141414"/>
     </linearGradient>
 
-    <!-- Subtle top-light overlay for Apple-style depth -->
-    <linearGradient id="topSheen" x1="0.5" y1="0" x2="0.5" y2="0.5">
-      <stop offset="0%" stop-color="white" stop-opacity="0.10"/>
+    <!-- Top edge highlight for depth -->
+    <linearGradient id="topHighlight" x1="0.5" y1="0" x2="0.5" y2="0.35">
+      <stop offset="0%" stop-color="white" stop-opacity="0.08"/>
       <stop offset="100%" stop-color="white" stop-opacity="0"/>
     </linearGradient>
 
-    <!-- Bottom shadow overlay -->
-    <linearGradient id="bottomShadow" x1="0.5" y1="0.65" x2="0.5" y2="1">
+    <!-- Inner glow at top-left for Linear-style lighting -->
+    <radialGradient id="innerGlow" cx="0.35" cy="0.25" r="0.6" fx="0.35" fy="0.25">
+      <stop offset="0%" stop-color="white" stop-opacity="0.06"/>
+      <stop offset="60%" stop-color="white" stop-opacity="0.02"/>
+      <stop offset="100%" stop-color="white" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Bottom vignette for grounding -->
+    <linearGradient id="bottomVignette" x1="0.5" y1="0.7" x2="0.5" y2="1">
       <stop offset="0%" stop-color="black" stop-opacity="0"/>
-      <stop offset="100%" stop-color="black" stop-opacity="0.06"/>
+      <stop offset="100%" stop-color="black" stop-opacity="0.15"/>
     </linearGradient>
 
-    <!-- Subtle shadow for the bracket symbol -->
+    <!-- Subtle border/edge definition -->
+    <linearGradient id="borderGrad" x1="0.5" y1="0" x2="0.5" y2="1">
+      <stop offset="0%" stop-color="white" stop-opacity="0.12"/>
+      <stop offset="50%" stop-color="white" stop-opacity="0.04"/>
+      <stop offset="100%" stop-color="white" stop-opacity="0.02"/>
+    </linearGradient>
+
+    <!-- Shadow for bracket symbol -->
     <filter id="symbolShadow" x="-5%" y="-5%" width="110%" height="115%">
-      <feDropShadow dx="0" dy="3" stdDeviation="5" flood-color="black" flood-opacity="0.12"/>
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="black" flood-opacity="0.4"/>
+    </filter>
+
+    <!-- Subtle glow on brackets -->
+    <filter id="symbolGlow" x="-10%" y="-10%" width="120%" height="120%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="2" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
     </filter>
   </defs>
 
-  <!-- Squircle background with gradient -->
+  <!-- Base squircle -->
   <rect x="0" y="0" width="1024" height="1024" rx="224" ry="224" fill="url(#bgGradient)"/>
 
-  <!-- Top sheen for glass/depth effect -->
-  <rect x="0" y="0" width="1024" height="1024" rx="224" ry="224" fill="url(#topSheen)"/>
+  <!-- Top highlight layer -->
+  <rect x="0" y="0" width="1024" height="1024" rx="224" ry="224" fill="url(#topHighlight)"/>
 
-  <!-- Bottom subtle darkening -->
-  <rect x="0" y="0" width="1024" height="1024" rx="224" ry="224" fill="url(#bottomShadow)"/>
+  <!-- Inner glow for dimension -->
+  <rect x="0" y="0" width="1024" height="1024" rx="224" ry="224" fill="url(#innerGlow)"/>
+
+  <!-- Bottom vignette -->
+  <rect x="0" y="0" width="1024" height="1024" rx="224" ry="224" fill="url(#bottomVignette)"/>
+
+  <!-- Edge border (1px inset stroke) -->
+  <rect x="1" y="1" width="1022" height="1022" rx="223" ry="223" fill="none" stroke="url(#borderGrad)" stroke-width="1.5"/>
 
   <!-- Logseq double bracket symbol -->
   <g transform="translate(512, 512)" fill="none" stroke="white" stroke-width="44" stroke-linecap="round" stroke-linejoin="round" filter="url(#symbolShadow)">
@@ -44,7 +73,7 @@
       L -310,216
       Q -310,250 -276,250
       L -230,250
-    " opacity="0.96"/>
+    " opacity="0.95"/>
 
     <!-- Inner left [ -->
     <path d="
@@ -54,7 +83,7 @@
       L -170,216
       Q -170,250 -136,250
       L -90,250
-    " opacity="0.96"/>
+    " opacity="0.95"/>
 
     <!-- Inner right ] -->
     <path d="
@@ -64,7 +93,7 @@
       L 170,216
       Q 170,250 136,250
       L 90,250
-    " opacity="0.96"/>
+    " opacity="0.95"/>
 
     <!-- Outer right ] -->
     <path d="
@@ -74,7 +103,7 @@
       L 310,216
       Q 310,250 276,250
       L 230,250
-    " opacity="0.96"/>
+    " opacity="0.95"/>
 
   </g>
 
