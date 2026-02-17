@@ -1,5 +1,7 @@
 .cp__header {
-  @apply shadow z-10 flex items-center justify-between sticky top-0 left-0 right-0 leading-none whitespace-nowrap;
+  @apply z-10 flex items-center justify-between sticky top-0 left-0 right-0 leading-none whitespace-nowrap;
+
+  border-bottom: 1px solid var(--ls-border-color);
 
   -webkit-app-region: drag;
 
@@ -142,7 +144,7 @@
 
 @screen sm {
   .cp__header {
-    @apply shadow-none;
+    border-bottom: none;
   }
 
   .cp__header-logo {

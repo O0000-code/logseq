@@ -185,10 +185,20 @@ module.exports = {
       // borderColor: {
       //   ...lx('--lx-border-override'),
       // },
+      transitionDuration: {
+        'fast': '120ms',
+        'normal': '200ms',
+        'slow': '350ms',
+      },
+      transitionTimingFunction: {
+        'apple': 'cubic-bezier(0.25, 0.1, 0.25, 1.0)',
+        'spring': 'cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+      },
       borderRadius: {
-        lg: 'var(--radius)',
-        md: 'calc(var(--radius) - 2px)',
-        sm: 'calc(var(--radius) - 4px)',
+        lg: '14px',
+        md: '10px',
+        sm: '6px',
+        xs: '4px',
       },
       keyframes: {
         'accordion-down': {

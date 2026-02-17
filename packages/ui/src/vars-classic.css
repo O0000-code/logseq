@@ -5,16 +5,39 @@
   --ls-page-title-size: 36px;
   --ls-main-content-max-width: 960px;
   --ls-main-content-max-width-wide: 1440px;
-  --ls-font-family: Inter;
+  --ls-font-family: Inter, -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif;
   --ls-scrollbar-width: 6px;
   --ls-border-radius-low: 4px;
-  --ls-border-radius-medium: 8px;
+  --ls-border-radius-medium: 10px;
   --ls-headbar-height: 3rem;
   --ls-headbar-inner-top-padding: 0px;
   --ls-left-sidebar-width: 246px;
   --ls-left-sidebar-sm-width: 74vw;
   --ls-left-sidebar-nav-btn-size: 38px;
   --ls-native-kb-height: 0px;
+
+  /* Border Radius System */
+  --ls-radius-xs: 4px;
+  --ls-radius-sm: 6px;
+  --ls-radius-md: 10px;
+  --ls-radius-lg: 14px;
+
+  /* Shadow System */
+  --ls-shadow-none: none;
+  --ls-shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.04), 0 1px 1px rgba(0, 0, 0, 0.03);
+  --ls-shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+  --ls-shadow-md: 0 4px 16px rgba(0, 0, 0, 0.08), 0 2px 4px rgba(0, 0, 0, 0.04);
+  --ls-shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.12), 0 4px 8px rgba(0, 0, 0, 0.06);
+  --ls-shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.16), 0 8px 16px rgba(0, 0, 0, 0.08);
+
+  /* Transition System */
+  --ls-transition-fast: 120ms;
+  --ls-transition-normal: 200ms;
+  --ls-transition-slow: 350ms;
+  --ls-ease-default: cubic-bezier(0.25, 0.1, 0.25, 1.0);
+  --ls-ease-spring: cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  --ls-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ls-ease-in: cubic-bezier(0.7, 0, 0.84, 0);
 
   --ls-highlight-color-gray: var(--rx-gray-05);
   --ls-highlight-color-red: var(--rx-red-05);
@@ -105,6 +128,12 @@ html[data-theme=light][data-color=logseq] {
 }
 
 html[data-theme=dark][data-color=logseq] {
+  --ls-shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.2), 0 1px 1px rgba(0, 0, 0, 0.15);
+  --ls-shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.2);
+  --ls-shadow-md: 0 4px 16px rgba(0, 0, 0, 0.35), 0 2px 4px rgba(0, 0, 0, 0.2);
+  --ls-shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.4), 0 4px 8px rgba(0, 0, 0, 0.25);
+  --ls-shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.5), 0 8px 16px rgba(0, 0, 0, 0.3);
+
   --ls-primary-background-color: hsl(220, 8%, 10.5%);
   --ls-secondary-background-color: hsl(218, 7%, 13.5%);
   --ls-tertiary-background-color: hsl(216, 6%, 16.5%);
