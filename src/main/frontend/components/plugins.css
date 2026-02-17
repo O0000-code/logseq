@@ -61,7 +61,7 @@
       @apply px-6 transition-shadow;
 
       &.scrolled {
-        box-shadow: 0 4px 6px -6px #ccc;
+        box-shadow: var(--ls-shadow-xs);
       }
 
       .ui__dropdown-trigger {
@@ -926,7 +926,7 @@ html[data-theme='dark'] {
   .cp__plugins-page {
     .control-tabs {
       &.scrolled {
-        box-shadow: 0 4px 6px -6px #666;
+        box-shadow: var(--ls-shadow-xs);
       }
     }
   }

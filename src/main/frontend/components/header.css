@@ -65,7 +65,7 @@
     }
 
     a {
-      color: var(--ls-link-text-color, #045591) !important;
+      color: var(--ls-link-text-color) !important;
     }
 
     a.restart {

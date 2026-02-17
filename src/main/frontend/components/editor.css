@@ -37,12 +37,11 @@
 pre {
   display: block;
   padding: 0.5rem;
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.02);
+  box-shadow: 0 0 0 1px var(--ls-secondary-border-color);
   border-radius: var(--ls-radius-sm);
 }
 
 .non-block-editor textarea {
-  background: #f6f8fa;
   background: var(--ls-secondary-background-color);
 }
 

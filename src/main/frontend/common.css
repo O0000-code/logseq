@@ -49,7 +49,7 @@ body {
   textarea {
     overflow: hidden;
     padding: 8px;
-    border: 1px solid rgba(39, 41, 43, 0.15);
+    border: 1px solid var(--ls-border-color);
     border-radius: var(--ls-border-radius-low);
     font-size: 1em;
     line-height: 1.5;
@@ -83,7 +83,7 @@ body {
   }
 
   pre {
-    background: var(--ls-secondary-background-color, #f6f8fa);
+    background: var(--ls-secondary-background-color);
     margin: 1rem 0;
     line-height: 1.45em;
     overflow: auto;
@@ -104,9 +104,8 @@ body {
   }
 
   pre.code {
-    background: #282a36;
     background: var(--ls-secondary-background-color);
-    color: var(--ls-primary-text-color, #f8f8f2);
+    color: var(--ls-primary-text-color);
   }
 
   dl {
@@ -193,11 +192,11 @@ li p:last-child,
 }
 
 .bg-base-2 {
-  background-color: var(--ls-secondary-background-color, #f0f8ff);
+  background-color: var(--ls-secondary-background-color);
 }
 
 .bg-base-3 {
-  background-color: var(--ls-primary-background-color, #fff);
+  background-color: var(--ls-primary-background-color);
 }
 
 .bg-base-4 {
@@ -292,7 +291,7 @@ li p:last-child,
 }
 
 .dnd-separator {
-  border-bottom: 3px solid #ccc;
+  border-bottom: 3px solid var(--ls-border-color);
 }
 
 .aspect-ratio-square {
@@ -364,13 +363,13 @@ span.priority {
 
 a.nav-item:hover,
 a.star-page:hover {
-  background-color: #00242d;
+  background-color: var(--lx-gray-04, var(--ls-quaternary-background-color, var(--rx-gray-04)));
 }
 
 button.menu {
   border-right: 1px solid;
-  border-right-color: var(--ls-secondary-background-color, #f0f8ff);
-  color: var(--ls-link-text-color, #24292e);
+  border-right-color: var(--ls-secondary-background-color);
+  color: var(--ls-link-text-color);
 }
 
 .menu-link:hover,
@@ -403,11 +402,11 @@ button.menu:focus {
 }
 
 a.login {
-  color: var(--ls-link-text-color, #444);
+  color: var(--ls-link-text-color);
 }
 
 a.login:hover {
-  color: var(--ls-link-text-hover-color, #000);
+  color: var(--ls-link-text-hover-color);
 }
 
 a.tooltip-priority {
@@ -611,8 +610,8 @@ mark {
 mark > code {
   padding: 0;
   line-height: inherit !important;
-  background: #fef3ac !important;
-  color: #262626 !important;
+  background: var(--ls-page-mark-bg-color, #fef3ac) !important;
+  color: var(--ls-page-mark-color, #262626) !important;
 }
 
 .text-link {
@@ -644,7 +643,7 @@ a.page-op svg {
 }
 
 html[data-theme='light'] .keyboard-shortcut > code {
-  box-shadow: inset 0 -1px 0 #433f3855, 0 0 1px 1px #433f3822;
+  box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.12), 0 0 1px 1px rgba(0, 0, 0, 0.06);
 }
 
 html[data-theme='dark'] .keyboard-shortcut > code {

@@ -327,7 +327,7 @@ html.is-mobile {
 }
 
 .ui__toggle-background-off {
-  background: var(--lx-gray-08, rgb(212, 212, 212));
+  background: var(--lx-gray-08, var(--rx-gray-06));
 }
 
 input[type='range'] {
