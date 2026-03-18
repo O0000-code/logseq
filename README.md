@@ -1,218 +1,128 @@
-<!-- logo -->
-<p align="center">
-    <a href="https://logseq.com" alt="Logseq Logo">
-    <img src="https://user-images.githubusercontent.com/25513724/220608753-f33db466-af72-4611-b603-411440c15ed0.png?sanatize=true" height="173"/></a>
-</p>
+# Logseq (UI-Enhanced Fork)
 
-<h1 align="center"> Logseq </h1>
+> A UI/UX-focused fork of [Logseq](https://github.com/logseq/logseq), the privacy-first, open-source knowledge management platform. This fork applies visual refinements to typography, color, spacing, and interaction design -- all core functionality remains identical to upstream.
 
-<h4 align="center">
-    A privacy-first, open-source platform for knowledge management and collaboration
-</h4>
+## About This Fork
 
-<div align="center">
-    <a href="https://logseq.com">Home Page</a> |
-    <a href="https://blog.logseq.com/">Blog</a> |
-    <a href="https://docs.logseq.com/">Documentation</a> |
-    <a href="https://discuss.logseq.com/t/logseq-product-roadmap/34267">Roadmap</a>
-</div>
-<br></br>
+This repository is a fork of [logseq/logseq](https://github.com/logseq/logseq) based on Logseq DB v2.0.1 (commit `0d0d8b7f3`). It replaces Logseq's default Solarized-derived color system and ad-hoc styling with a cohesive, token-based design system inspired by Apple ecosystem applications.
 
-<p align="center">
-    <a href="https://github.com/logseq/logseq/releases/latest/">
-        <img src="https://img.shields.io/badge/Download_Logseq-100000?style=for-the-badge&logo=flatpak&logoColor=white&labelColor=002b36&color=85c8c8"
-            alt="Download Logseq"/></a>
-</p>
+**This fork does not add or remove any features.** Every change is confined to CSS, design tokens, and application icons. No application logic, data model, or plugin API behavior has been modified.
 
-<!-- social badges -->
-<p align="center">
-    <a href="https://discuss.logseq.com">
-        <img src="https://img.shields.io/badge/forum-Logseq-blue.svg?&color=%2385c8c8&logo=discourse&style=for-the-badge"
-            alt="forum"></a>
-    <a href="https://discord.gg/KpN4eHY">
-        <img src="https://img.shields.io/discord/725182569297215569?color=%2385c8c8&label=Discord&logo=discord&style=for-the-badge"
-            alt="chat on Discord"></a>
-    <a href="https://twitter.com/intent/follow?screen_name=logseq">
-        <img src="https://img.shields.io/badge/twitter-%40logseq-blue.svg?&color=%2385c8c8&logo=twitter&style=for-the-badge"
-            alt="follow on Twitter"></a>
-</p>
+If you are looking for Logseq's core functionality, documentation, or feature requests, please visit the [upstream repository](https://github.com/logseq/logseq).
 
-<!-- dev badges -->
-<p align="center">
-    <a href="https://github.com/logseq/logseq/graphs/contributors" alt="Contributors">
-        <img src="https://img.shields.io/github/contributors/logseq/logseq?color=%2385c8c8&style=for-the-badge"/></a>
-    <a href="#-backers" alt="Backers on Open Collective">
-        <img src="https://img.shields.io/opencollective/backers/logseq?color=%2385c8c8&style=for-the-badge"/></a>
-    <a href="#-sponsors" alt="Sponsors on Open Collective">
-        <img src="https://img.shields.io/opencollective/sponsors/logseq?color=%2385c8c8&style=for-the-badge"/></a>
-    <a href="https://github.com/logseq/logseq/blob/master/LICENSE.md" alt="Activity">
-        <img src="https://img.shields.io/github/license/logseq/logseq?color=%2385c8c8&style=for-the-badge"/></a>
-    <a href="https://github.com/logseq/logseq/releases">
-        <img src="https://img.shields.io/github/v/release/logseq/logseq?color=%2385c8c8&style=for-the-badge"
-            alt="latest release version"></a>
-</p>
+## What's Different
 
-## Table of Contents
+### 1. Neutral Gray-Blue Color System
 
-  * [<g-emoji class="g-emoji" alias="database" fallback-src="https://github.githubassets.com/images/icons/emoji/unicode/1f680.png">🚀</g-emoji> Database Version](#-database-version)
-  * [<g-emoji class="g-emoji" alias="thinking" fallback-src="https://github.githubassets.com/images/icons/emoji/unicode/1f914.png">🤔</g-emoji> Why Logseq?](#-why-logseq)
-  * [<g-emoji class="g-emoji" alias="eyes" fallback-src="https://github.githubassets.com/images/icons/emoji/unicode/1f440.png">👀</g-emoji> How can I use it?](#-how-can-i-use-it)
-  * [<g-emoji class="g-emoji" alias="books" fallback-src="https://github.githubassets.com/images/icons/emoji/unicode/1f4da.png">📚</g-emoji> Learn more](#-learn-more)
-  * [🫶 Support Logseq Development](#-support-logseq-development)
-  * [<g-emoji class="g-emoji" alias="bulb" fallback-src="https://github.githubassets.com/images/icons/emoji/unicode/1f4a1.png">💡</g-emoji> Feature requests](#-feature-requests)
-  * [<g-emoji class="g-emoji" alias="electric_plug" fallback-src="https://github.githubassets.com/images/icons/emoji/unicode/1f50c.png">🔌</g-emoji> Plugin API](#-plugin-api)
-  * [<g-emoji class="g-emoji" alias="star2" fallback-src="https://github.githubassets.com/images/icons/emoji/unicode/1f31f.png">🌟</g-emoji> Contributing to Logseq](#-contributing-to-logseq)
-    * [<g-emoji class="g-emoji" alias="hammer_and_wrench" fallback-src="https://github.githubassets.com/images/icons/emoji/unicode/1f6e0.png">🛠️</g-emoji> Setting Up a Development Environment](#️-setting-up-a-development-environment)
-  * [<g-emoji class="g-emoji" alias="sparkles" fallback-src="https://github.githubassets.com/images/icons/emoji/unicode/2728.png">✨</g-emoji> Inspiration](#-inspiration)
-* [<g-emoji class="g-emoji" alias="pray" fallback-src="https://github.githubassets.com/images/icons/emoji/unicode/1f64f.png">🙏</g-emoji> Thank You](#-thank-you)
+Replaces Logseq's Solarized-derived palette (high-saturation cyan/teal hues) with a 12-step neutral gray-blue scale. All hues converge to 213-220 with saturation held between 5-22%, producing colors that appear nearly gray with a subtle cool undertone.
 
-## 🚀 Database Version
+| | Upstream | This Fork |
+|---|---------|-----------|
+| Light background | `#ffffff` (pure white) | `#fafbfc` / `hsl(214, 12%, 98.5%)` |
+| Dark background | `#002b36` (Solarized teal) | `#181a1e` / `hsl(220, 8%, 10.5%)` |
+| Light text | `#433f38` (warm brown) | `hsl(210, 10%, 15%)` (cool dark gray) |
+| Dark text | `#a4b5b6` (cyan-gray) | `hsl(210, 5%, 78%)` (neutral gray) |
+| Link color (light) | `#106ba3` (saturated blue) | `hsl(213, 20%, 42%)` (muted gray-blue) |
+| Borders | Fixed hex (`#ccc` / `#0e5263`) | Semi-transparent `rgba()` values that adapt to any background |
+| Selection highlight | Opaque `#e4f2ff` | Semi-transparent `hsla(213, 50%, 70%, 0.2)` |
 
-The Database version (DB version) of Logseq introduces DB graphs. [See this page](https://github.com/logseq/docs/blob/master/db-version.md) to get an overview of the main features for DB graphs. If you are an existing user, [see changes with the DB version](https://github.com/logseq/docs/blob/master/db-version-changes.md). The DB version has its own new mobile app (on iOS, with Android coming soon)! To participate in the mobile app alpha, [please complete this brief form](https://forms.gle/nfefJv51jUuULbFB9). The DB version also has a new sync approach, RTC (Real Time Collaboration)! You can use it to sync graphs between multiple devices or collaborate with others. To participate in the RTC alpha, [please fill out this form](https://forms.gle/YSyF4WfKPSDuwyjH6).
+The dark mode completely eliminates the "too green" tint that has been a longstanding point of contention with Logseq's default theme.
 
-The DB version is in beta status while the new mobile app and RTC is in alpha. This means that **data loss is possible** so we recommend [automated backups](https://github.com/logseq/docs/blob/master/db-version.md#automated-backup) or [regular SQLite DB backups](https://github.com/logseq/docs/blob/master/db-version.md#graph-export). We recommend you create a dedicated test graph and choose one project that’s not crucial for you.
+### 2. Systematic Design Tokens
 
-To get started with the DB version:
-* To try the latest web version, go to https://test.logseq.com/.
-* To try the latest desktop version, login to Github and go to https://github.com/logseq/logseq/actions/workflows/build-desktop-release.yml and click on the latest release. Scroll to the bottom and under the `Artifacts` section download the artifact for your operating system.
-* To report bugs, please file them at https://github.com/logseq/db-test/issues.
-* For feature or enhancement requests, please file them on Discord on the `#db-feedback` channel.
-* For discussion, see the `#db-chat` channel in Discord.
+Introduces a token-based system covering four dimensions, replacing scattered hardcoded values throughout the CSS:
 
-## 🤔 Why Logseq?
+**Border radius** -- 4 levels:
 
-[Logseq](https://logseq.com) is a **knowledge management** and **collaboration** platform. It focuses on **privacy**, **longevity**, and [**user control**](https://www.gnu.org/philosophy/free-sw.en.html). Logseq offers a range of **powerful tools** for **knowledge management**, **collaboration**, **PDF annotation**, and **task management** with support for multiple file formats, including **Markdown** and **Org-mode**, and **various features** for organizing and structuring your notes.
+| Token | Value | Usage |
+|-------|-------|-------|
+| `--ls-radius-xs` | 4px | Navigation buttons, inline code |
+| `--ls-radius-sm` | 6px | Code blocks |
+| `--ls-radius-md` | 10px | Modals, cards |
+| `--ls-radius-lg` | 14px | Large panels |
 
-In addition to its core features, Logseq has a growing ecosystem of **plugins** and **themes** that enable a wide range of workflows and **customization** options. **Mobile apps** are also available, providing access to most of the features of the desktop application. Whether you're a student, a professional, or anyone who values a clear and organized approach to managing your ideas and notes, Logseq is an excellent choice for anyone looking to improve their productivity and streamline their workflow.
+**Shadows** -- 5 levels with dual-layer definitions (spread + focus), dark mode automatically increases opacity to compensate for reduced contrast:
 
-![logseq-demo](https://user-images.githubusercontent.com/25513724/221387376-4dc419c2-0d0a-460c-a920-2d211e78b456.gif)
+| Token | Light mode example |
+|-------|--------------------|
+| `--ls-shadow-xs` | `0 1px 2px rgba(0,0,0,0.04), 0 1px 1px rgba(0,0,0,0.03)` |
+| `--ls-shadow-md` | `0 4px 16px rgba(0,0,0,0.08), 0 2px 4px rgba(0,0,0,0.04)` |
+| `--ls-shadow-lg` | `0 8px 32px rgba(0,0,0,0.12), 0 4px 8px rgba(0,0,0,0.06)` |
 
-<a href="https://github.com/logseq/logseq/releases/latest/">
-        <img src="https://img.shields.io/badge/Download_Logseq-100000?style=for-the-badge&logo=flatpak&logoColor=white&labelColor=002b36&color=85c8c8"
-            align="right"
-            alt="Download Logseq"/></a>
+**Transitions** -- 3 duration tiers with Apple-style easing curves:
 
-## 👀 How can I use it?
+| Speed | Duration | Easing |
+|-------|----------|--------|
+| Fast | 120ms | `cubic-bezier(0.25, 0.1, 0.25, 1.0)` (default) |
+| Normal | 200ms | Same, or spring variant for bounce effects |
+| Slow | 350ms | `cubic-bezier(0.16, 1, 0.3, 1)` (spatial transitions) |
 
-To start using Logseq, follow these simple steps:
+### 3. Typography Refinements
 
-1. [Download](https://github.com/logseq/logseq/releases/latest) the latest version of Logseq
-2. Install Logseq on your device and launch the application
-3. Start writing ✍️
+- **Font stack**: Extended to `Inter, -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif` with proper Apple system font fallbacks
+- **Rendering**: Subpixel antialiasing (`-webkit-font-smoothing: antialiased`) and `text-rendering: optimizeLegibility` applied globally
+- **Heading tracking**: Title letter-spacing tightened to `-0.015em`, a characteristic Apple typography technique for large text
 
-That's it! You can now enjoy the benefits of using Logseq to streamline your workflow, manage your projects, and stay on top of your goals. Have fun! 🎉
+### 4. Interaction Polish
 
-**Linux users**: Use the automated installer script for the best experience:
+- **Header**: Box shadow replaced with a precise `1px solid` border-bottom, following recent macOS/iOS conventions for layer separation
+- **Modal overlay**: Opacity reduced from 70% to 40% for a lighter, less intrusive backdrop
+- **Scrollbars**: Background set to fully transparent; only the thumb is visible
+- **All hardcoded color values** in component CSS migrated to CSS custom properties for consistent light/dark mode behavior
 
-   ```bash
-   # Download and run the installer
-   curl -fsSL https://raw.githubusercontent.com/logseq/logseq/master/scripts/install-linux.sh | bash
+### 5. Application Icon
 
-   # Or install a specific version
-   curl -fsSL https://raw.githubusercontent.com/logseq/logseq/master/scripts/install-linux.sh | bash -s -- 0.10.14
+Custom icon following Apple Human Interface Guidelines:
 
-   # For user-specific installation (no root required)
-   curl -fsSL https://raw.githubusercontent.com/logseq/logseq/master/scripts/install-linux.sh | bash -s -- --user
-   ```
+- Apple squircle shape (continuous curvature, `rx/ry = 224` on 1024px canvas)
+- White gradient background (`#ffffff` to `#f3f3f5`) with top highlight and bottom grounding shadow
+- Dark `#1d1d1f` double-bracket `[[ ]]` symbol at 83% scale for proper negative space
+- Fine gradient border (`#d4d4d8` to `#b8b8bc`, 1.5px)
+- Generated in all platform formats: `.icns` (macOS), `.ico` (Windows), `.png` (Linux/Electron)
 
-## 📚 Learn more
+## Screenshots
 
-* Website: [logseq.com](https://logseq.com)
-* Documentation: [docs.logseq.com](https://docs.logseq.com)
-  * FAQ page: [Logseq Docs:  FAQ](https://docs.logseq.com/#/page/faq)
-* Blog: [blog.logseq.com](https://blog.logseq.com)
-  * Please visit our [About page](https://blog.logseq.com/about) for the latest updates.
-* Forum: [discuss.logseq.com](https://discuss.logseq.com) - Where we answer questions, discuss workflows, and share tips
-  * FAQ forum section: [Logseq Forum: FAQ](https://discuss.logseq.com/c/faq/6)
-* [Awesome Logseq](https://github.com/logseq/awesome-logseq) - Awesome Logseq extensions and resources created by the community <3
-* Twitter: [@Logseq](https://twitter.com/logseq)
-* Discord: [https://discord.com/invite/KpN4eHY](https://discord.com/invite/KpN4eHY)
-  * [中文 Discord](https://discord.gg/xYqcrXWymg)
+Screenshots comparing upstream and this fork are planned. Check back for before/after comparisons of light mode, dark mode, and component details.
 
-## 🫶 Support Logseq Development
+## Upstream Project
 
-If you find Logseq useful and want to help us keep the project growing, please consider supporting our contributors on [Open Collective](https://opencollective.com/logseq). Your support shows our contributors that their efforts are appreciated and motivates them to continue their excellent work. Every contribution, no matter how small, helps us keep improving Logseq.
+This fork is built on [Logseq](https://github.com/logseq/logseq) by the Logseq team. Logseq is a privacy-first, open-source platform for knowledge management and collaboration, with support for both Markdown file graphs and the newer database graph format.
 
-## 💡 Feature requests
+- **Upstream repository**: [github.com/logseq/logseq](https://github.com/logseq/logseq)
+- **Official website**: [logseq.com](https://logseq.com)
+- **Based on version**: Logseq DB v2.0.1 (commit `0d0d8b7f3`)
 
-We value your input on improving Logseq and making it more useful for you. If you have any ideas or feature requests, please share them in the [Logseq Forum: Feature
-Requests](https://discuss.logseq.com/new-topic?category=feature-requests) section.
+If you find this fork useful, please also consider [starring the upstream repository](https://github.com/logseq/logseq) to support the original developers.
 
-Your feedback helps us understand our users' needs and prioritize the features that matter most to you. We appreciate your time and effort in sharing your thoughts with us.
+## Building from Source
 
-We appreciate your support, and we look forward to hearing your ideas!
+Build steps are identical to the upstream Logseq project. Refer to the upstream guides:
 
-## 🔌 Plugin API
+- **macOS / Linux**: [Develop Logseq](https://github.com/logseq/logseq/blob/master/docs/develop-logseq.md)
+- **Windows**: [Develop Logseq on Windows](https://github.com/logseq/logseq/blob/master/docs/develop-logseq-on-windows.md)
 
-Logseq provides a plugin API that enables developers to create custom plugins and extend the functionality of Logseq. The plugin API documentation is available at [plugins-doc.logseq.com](https://plugins-doc.logseq.com/), where you can find everything needed to get started with plugin development.
+Quick start:
 
-We value your feedback and suggestions on how to improve our documentation. Please do not hesitate to contact us with any comments or questions. Your input helps us to provide a better experience for our users and developers.
+```bash
+# Install dependencies
+yarn install
 
-Thank you for using Logseq, and we look forward to seeing what you create with our plugin API!
+# Start development mode
+yarn dev
 
-## 🌟 Contributing to Logseq
+# Run tests
+yarn test
+```
 
-To start contributing to Logseq, please read [CONTRIBUTING.md](CONTRIBUTING.md).
-There are ways to contribute [with code](https://github.com/logseq/logseq/blob/master/CONTRIBUTING.md#code-contributions) and [without code](https://github.com/logseq/logseq/blob/master/CONTRIBUTING.md#-how-can-i-help). We welcome all
-contributions, big or small, and we appreciate your time and effort in helping
-us improve Logseq. We look forward to your contributions 🚀
+## License
 
-### 🛠️ Setting Up a Development Environment
+This project is licensed under the [GNU Affero General Public License v3.0](LICENSE.md), the same license as the upstream [Logseq](https://github.com/logseq/logseq) project.
 
-If you want to set up a development environment for the Logseq web or desktop app, please refer to the [Develop Logseq](docs/develop-logseq.md) guide for macOS/Linux users and the [Develop Logseq on Windows](docs/develop-logseq-on-windows.md) guide for Windows users.
+Copyright (c) 2020-present Logseq, Inc. and contributors.
+UI modifications copyright (c) 2026 Bo.
 
-In addition to these guides, you can also find other helpful resources in the [docs/](docs/) folder, such as the [Guide for Contributing to Translations](docs/contributing-to-translations.md), the [Docker Web App Guide](docs/docker-web-app-guide.md) and the [mobile development guide](docs/develop-logseq-on-mobile.md)
+## Acknowledgments
 
-## ✨ Inspiration
+This fork is built on the work of the [Logseq team](https://github.com/logseq) and its community of contributors. All credit for Logseq's architecture, functionality, and plugin ecosystem belongs to them.
 
-Logseq is inspired by several unique tools and projects, including [Roam Research](https://roamresearch.com/), [Org Mode](https://orgmode.org/), [TiddlyWiki](https://tiddlywiki.com/), [Workflowy](https://workflowy.com/), and [Cuekeeper](https://github.com/talex5/cuekeeper).
-
-We owe a huge debt of gratitude to the developers and creators of these projects, and we hope that Logseq can continue to build on their innovative ideas and make them accessible to a broader audience.
-
-Thank you to all those who inspire us, and we look forward to seeing what the Logseq community will create with this tool!
-
-Logseq is also made possible by the following projects:
-
-* [Clojure & ClojureScript](https://clojure.org/) - A dynamic, functional, general-purpose programming language
-* [DataScript](https://github.com/tonsky/datascript) - An immutable database and Datalog query-engine for Clojure,
-ClojureScript and JS
-* [OCaml](https://ocaml.org/) & [Angstrom](https://github.com/inhabitedtype/angstrom), for the document parser [mldoc](https://github.com/logseq/mldoc)
-* [isomorphic-git](https://isomorphic-git.org/) - A pure JavaScript implementation of Git for NodeJS and web browsers
-* [SCI](https://github.com/borkdude/sci) - A Small Clojure Interpreter
-
-# 🙏 Thank You
-
-We want to express our sincere gratitude to our [Open Collective](https://opencollective.com/logseq) **sponsors**, **backers**, and **contributors**. Your support and contributions allow us to continue developing and improving Logseq. Thank you for being a part of our community and helping us make Logseq the best it can be!
-
-## 💎 Sponsors
-
-<p align="center">
-    <a href="https://opencollective.com/logseq#sponsor"> [Become a sponsor]</a>
-</p>
-<p align="center">
-    <a href="https://opencollective.com/logseq" alt="Sponsors on Open Collective">
-        <img src="https://opencollective.com/logseq/tiers/sponsors.svg?avatarHeight=42&width=600"/></a>
-</p>
-
-## 🌟 Contributors
-
-<p align="center">
-    <a href="https://github.com/logseq/logseq/graphs/contributors">
-        <img src="https://contrib.rocks/image?repo=logseq/logseq&max=300&columns=14" width="600"/></a>
-</p>
-
-<!-- JetBrains Logo -->
-<p align="center">
-    <a href="https://jetbrains.com" alt="JetBrains">
-        <img src="docs/assets/jetbrains.svg"/></a>
-</p>
-
-<!-- ProductHunt Review Button -->
-<p align="center">
-    <a href="https://www.producthunt.com/posts/logseq?utm_source=badge-review&utm_medium=badge&utm_souce=badge-logseq#discussion-body"
-    target="_blank"><img
-        src="https://api.producthunt.com/widgets/embed-image/v1/review.svg?post_id=298158&theme=dark"
-        align="center"
-        alt="Logseq - Your joyful, private digital garden | Product Hunt" style="width: 250px; height: 54px;"
-        width="250" height="54"/></a>
-</p>
+Visual design inspiration drawn from [Apple Human Interface Guidelines](https://developer.apple.com/design/human-interface-guidelines/), [Things 3](https://culturedcode.com/things/), [Bear](https://bear.app/), and [Craft](https://www.craft.do/).
