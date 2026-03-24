@@ -16,7 +16,7 @@ module.exports = {
     ],
     // Code signing disabled for personal use build
     // osxSign: {
-    //   identity: 'Developer ID Application: Tiansheng Qin',
+    //   identity: 'Developer ID Application: Logseq Inc. (K378MFWK59)',
     //   'hardened-runtime': true,
     //   entitlements: 'entitlements.plist',
     //   'entitlements-inherit': 'entitlements.plist',

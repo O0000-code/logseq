@@ -182,6 +182,7 @@
   [:div.border.p-6.rounded.bg-gray-01.mt-4
    (let [form-ctx (form-core/use-form
                    {:defaultValues {:graph-name initial-name
+                                    :extract-code-snippets? false
                                     :convert-all-tags? true
                                     :tag-classes ""
                                     :remove-inline-tags? true
@@ -211,6 +212,15 @@
                                               (when error
                                                 (shui/form-description
                                                  [:b.text-red-800 (:message error)])))))
+
+                          (shui/form-field {:name "extract-code-snippets?"}
+                                           (fn [field]
+                                             (shui/form-item
+                                              {:class "pt-3 flex justify-start items-center space-x-3 space-y-0 my-3 pr-3"}
+                                              (shui/form-label "Extract inline code snippets as child blocks")
+                                              (shui/form-control
+                                               (shui/checkbox {:checked (:value field)
+                                                               :on-checked-change (:onChange field)})))))
 
                           (shui/form-field {:name "convert-all-tags?"}
                                            (fn [field]
@@ -301,10 +311,10 @@
                        (str "Block icons can't be imported. Manually import it at the block: " (pr-str (:block location))))
                      (if (not= (get-in schema [:type :to]) (get-in schema [:type :from]))
                        (str "Property value has type " (get-in schema [:type :to]) " instead of type " (get-in schema [:type :from]))
-                       (str "Property should be imported manually")))]))
+                       "Property should be imported manually"))]))
            (map (fn [[k v]]
                   [:dl.my-2.mb-0
-                   [:dt.m-0 [:strong (str k)]]
+               [:dt.m-0 [:strong k]]
                    [:dd {:class "text-warning"} v]])))]
      :warning false))
   (let [{:keys [errors]} (db-validate/validate-local-db! db {:verbose true})]
