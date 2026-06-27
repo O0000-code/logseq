@@ -3,6 +3,7 @@
   (:require [clojure.string :as string]
             [electron.ipc :as ipc]
             [frontend.config :as config]
+            [frontend.context.i18n :refer [t]]
             [frontend.date :as date]
             [frontend.db :as db]
             [frontend.db.persist :as db-persist]
@@ -16,9 +17,9 @@
             [frontend.persist-db :as persist-db]
             [frontend.search :as search]
             [frontend.state :as state]
-            [frontend.undo-redo :as undo-redo]
             [frontend.util :as util]
             [frontend.util.text :as text-util]
+            [logseq.common.version :as build-version]
             [logseq.db.frontend.schema :as db-schema]
             [promesa.core :as p]))
 
@@ -26,35 +27,53 @@
 ;; 1. User changes the config.edn directly in logseq.com (fn: alter-file)
 ;; 2. Git pulls the new change (fn: load-files)
 
+(defn- repo-urls
+  [repos]
+  (->> repos
+       (keep :url)
+       distinct))
+
+(defn demo-only-repo?
+  [repo repos]
+  (let [url (:url repo)
+        urls (repo-urls repos)]
+    (and (some? url)
+         (config/demo-graph? url)
+         (= 1 (count urls)))))
+
+(defn removable-repo?
+  [repo repos]
+  (not (demo-only-repo? repo repos)))
+
 (defn remove-repo!
   [{:keys [url] :as repo} & {:keys [switch-graph?]
                              :or {switch-graph? true}}]
-  (let [current-repo (state/get-current-repo)]
-    (p/do!
-     (db/remove-conn! url)
-     (db-persist/delete-graph! url)
-     (search/remove-db! url)
-     (state/delete-repo! repo)
-     (when switch-graph?
-       (if (= current-repo url)
-         (do
-           (state/set-current-repo! nil)
-           (when-let [graph (:url (first (state/get-repos)))]
-             (notification/show! (str "Removed graph "
-                                      (pr-str (text-util/get-graph-name-from-path url))
-                                      ". Redirecting to graph "
-                                      (pr-str (text-util/get-graph-name-from-path graph)))
-                                 :success)
-             (state/pub-event! [:graph/switch graph {:persist? false}])))
-         (notification/show! (str "Removed graph " (pr-str (text-util/get-graph-name-from-path url))) :success))))))
+  (if-not (removable-repo? repo (state/get-repos))
+    (p/rejected (ex-info "Cannot delete the demo graph when it is the only graph"
+                         {:code :demo-only-graph-delete
+                          :repo url}))
+    (let [current-repo (state/get-current-repo)]
+      (p/do!
+       (db/remove-conn! url)
+       (db-persist/delete-graph! url)
+       (search/remove-db! url)
+       (state/delete-repo! repo)
+       (when switch-graph?
+         (if (= current-repo url)
+           (do
+             (state/set-current-repo! nil)
+             (when-let [graph (:url (first (state/get-repos)))]
+               (notification/show! (t :graph/removed-and-redirecting
+                                      (text-util/get-graph-name-from-path url)
+                                      (text-util/get-graph-name-from-path graph))
+                                   :success)
+               (state/pub-event! [:graph/switch graph {:persist? false}])))
+           (notification/show! (t :graph/removed (text-util/get-graph-name-from-path url)) :success)))))))
 
 (defn start-repo-db-if-not-exists!
   [repo & {:as opts}]
   (state/set-current-repo! repo)
-  (db/start-db-conn! repo (assoc opts
-                                 :db-graph? true
-                                 :listen-handler (fn [conn]
-                                                   (undo-redo/listen-db-changes! repo conn)))))
+  (db/start-db-conn! repo (assoc opts :db-graph? true)))
 
 (defn restore-and-setup-repo!
   "Restore the db of a graph from the persisted data, and setup. Create a new
@@ -135,13 +154,13 @@
   (let [full-graph-name (string/lower-case (str config/db-version-prefix graph-name))]
     (some #(= (some-> (:url %) string/lower-case) full-graph-name) (state/get-repos))))
 
-(defn- create-db [full-graph-name {:keys [file-graph-import? remote-graph?]}]
+(defn- create-db [full-graph-name {:keys [file-graph-import? creating-remote-graph?]}]
   (->
    (p/let [config config/config-default-content
            _ (persist-db/<new full-graph-name
                               (cond-> {:config config
-                                       :graph-git-sha config/revision
-                                       :remote-graph? remote-graph?}
+                                       :graph-git-sha (build-version/revision)
+                                       :creating-remote-graph? creating-remote-graph?}
                                 file-graph-import? (assoc :import-type :file-graph)))
            _ (start-repo-db-if-not-exists! full-graph-name)
            _ (state/add-repo! {:url full-graph-name :root (config/get-local-dir full-graph-name)})
@@ -158,7 +177,7 @@
      (prn "New db created: " full-graph-name)
      full-graph-name)
    (p/catch (fn [error]
-              (notification/show! "Create graph failed." :error)
+              (notification/show! (t :graph/create-error) :error)
               (js/console.error error)))))
 
 (defn new-db!
@@ -168,7 +187,7 @@
    (let [full-graph-name (str config/db-version-prefix graph)]
      (if (graph-already-exists? graph)
        (state/pub-event! [:notification/show
-                          {:content (str "The graph '" graph "' already exists. Please try again with another name.")
+                          {:content (t :graph/already-exists-error graph)
                            :status :error}])
        (create-db full-graph-name opts)))))
 
@@ -177,5 +196,5 @@
   (p/do!
    (state/<invoke-db-worker :thread-api/gc-graph graph)
    (state/pub-event! [:notification/show
-                      {:content "Graph gc successfully!"
+                      {:content (t :graph/gc-success)
                        :status :success}])))

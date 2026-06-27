@@ -2,13 +2,13 @@
   "Custom queries."
   (:require [clojure.string :as string]
             [clojure.walk :as walk]
-            [frontend.date :as date]
             [frontend.db.conn :as conn]
             [frontend.db.model :as model]
             [frontend.db.react :as react]
             [frontend.db.utils :as db-utils]
             [frontend.extensions.sci :as sci]
             [frontend.state :as state]
+            [frontend.util.datalog :as datalog-util]
             [lambdaisland.glogi :as log]
             [logseq.common.util.page-ref :as page-ref]
             [logseq.db.frontend.inputs :as db-inputs]))
@@ -24,7 +24,7 @@
                                                        (or (when-let [name-or-uuid (state/get-current-page)]
                                                              (:block/title (model/get-block-by-uuid name-or-uuid)))
                                                            (:page (state/get-default-home))
-                                                           (date/today)))}
+                                                           (model/get-today-journal-title)))}
                                    opts))))
 
 (defn custom-query-result-transform
@@ -43,7 +43,7 @@
                    result)
           result-transform-fn (:result-transform q)]
       (if-let [result-transform (if (keyword? result-transform-fn)
-                                  (get-in (state/sub-config) [:query/result-transforms result-transform-fn])
+                                  (get-in (state/get-config) [:query/result-transforms result-transform-fn])
                                   result-transform-fn)]
         (if-let [f (sci/eval-string (pr-str result-transform))]
           (try
@@ -74,6 +74,10 @@
          :else
          f)) query)))
 
+(defn- query-expects-rules?
+  [query]
+  (contains? (set (:in (datalog-util/query-vec->map query))) '%))
+
 (defn react-query
   [repo {:keys [query inputs rules] :as query'} query-opts]
   (let [query (resolve-query query)
@@ -81,9 +85,12 @@
         db (conn/get-db repo)
         resolve-with (select-keys query-opts [:current-page-fn :current-block-uuid])
         resolved-inputs (mapv #(resolve-input db % resolve-with) inputs)
+        rules-input (cond
+                      (some? rules) rules
+                      (query-expects-rules? query) [])
         inputs (cond-> resolved-inputs
-                 rules
-                 (conj rules))
+                 (some? rules-input)
+                 (conj rules-input))
         k [:custom
            (or (:query-string query') (dissoc query' :title))
            (:today-query? query-opts)

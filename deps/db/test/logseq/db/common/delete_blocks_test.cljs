@@ -69,3 +69,61 @@
           history-entity (d/entity @conn [:block/uuid history-uuid])]
       (ldb/transact! conn [[:db/retractEntity (:db/id page)]])
       (is (nil? (d/entity @conn (:db/id history-entity)))))))
+
+(deftest delete-property-removes-history-for-property
+  (testing "property history entries for a deleted property are retracted"
+    (let [conn (db-test/create-conn-with-blocks
+                {:pages-and-blocks
+                 [{:page {:block/title "Page"}
+                   :blocks [{:block/title "Target block"}]}]
+                 :properties {:obsolete {:logseq.property/type :string}}})
+          block (db-test/find-block-by-content @conn "Target block")
+          property (d/entity @conn :user.property/obsolete)
+          history-uuid (random-uuid)
+          now (common-util/time-ms)
+          _ (d/transact! conn [{:block/uuid history-uuid
+                                :block/created-at now
+                                :block/updated-at now
+                                :logseq.property.history/block (:db/id block)
+                                :logseq.property.history/property (:db/id property)
+                                :logseq.property.history/scalar-value "old"}])
+          history-entity (d/entity @conn [:block/uuid history-uuid])
+          retracts [[:db/retractEntity (:db/id property)]]
+          extra (delete-blocks/update-refs-history @conn retracts {})]
+      (d/transact! conn (concat retracts extra))
+      (is (nil? (d/entity @conn (:db/id history-entity)))))))
+
+(deftest delete-blocks-removes-history-for-corresponding-views
+  (testing "property history entries attached to a deleted block's view are retracted"
+    (let [conn (db-test/create-conn-with-blocks
+                {:pages-and-blocks
+                 [{:page {:block/title "Page"}
+                   :blocks [{:block/title "Target block"}]}]})
+          target-block (db-test/find-block-by-content @conn "Target block")
+          view-uuid (random-uuid)
+          target-history-uuid (random-uuid)
+          view-history-uuid (random-uuid)
+          now (common-util/time-ms)
+          _ (d/transact! conn [{:block/uuid view-uuid
+                                :block/title "Target view"
+                                :block/created-at now
+                                :block/updated-at now
+                                :logseq.property/view-for (:db/id target-block)
+                                :logseq.property.view/type :logseq.property.view/type.table
+                                :logseq.property.view/feature-type :linked-references}
+                               {:block/uuid target-history-uuid
+                                :block/created-at now
+                                :block/updated-at now
+                                :logseq.property.history/block (:db/id target-block)
+                                :logseq.property.history/property (:db/id (d/entity @conn :logseq.property/status))
+                                :logseq.property.history/scalar-value "Todo"}
+                               {:block/uuid view-history-uuid
+                                :block/created-at now
+                                :block/updated-at now
+                                :logseq.property.history/block [:block/uuid view-uuid]
+                                :logseq.property.history/property (:db/id (d/entity @conn :logseq.property/status))
+                                :logseq.property.history/scalar-value "List"}])]
+      (ldb/transact! conn [[:db/retractEntity (:db/id target-block)]])
+      (is (nil? (d/entity @conn [:block/uuid view-uuid])))
+      (is (nil? (d/entity @conn [:block/uuid target-history-uuid])))
+      (is (nil? (d/entity @conn [:block/uuid view-history-uuid]))))))

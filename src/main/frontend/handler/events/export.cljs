@@ -1,18 +1,19 @@
 (ns frontend.handler.events.export
   "Export events"
   (:require [frontend.handler.events :as events]
+            [frontend.context.i18n :refer [t]]
             [frontend.state :as state]
             [frontend.ui :as ui]
             [logseq.shui.dialog.core :as shui-dialog]
             [logseq.shui.ui :as shui]
-            [rum.core :as rum]))
+            [io.factorhouse.hsx.core :as hsx]))
 
-(rum/defc indicator-progress < rum/reactive
+(hsx/defc indicator-progress
   []
-  (let [{:keys [total current-idx current-page label]} (state/sub :graph/exporting-state)
-        label (or label "Exporting")
+  (let [{:keys [total current-idx current-page label]} (state/use-sub :graph/exporting-state)
+        label (or label (t :export/exporting))
         left-label (if (and current-idx total (= current-idx total))
-                     [:div.flex.flex-row.font-bold "Loading ..."]
+                     [:div.flex.flex-row.font-bold (t :ui/loading)]
                      [:div.flex.flex-row.font-bold
                       label
                       [:div.hidden.md:flex.flex-row
@@ -31,7 +32,7 @@
   (state/set-state! :graph/exporting-state {:total 100
                                             :current-idx 0
                                             :current-page label
-                                            :label "Exporting"})
+                                            :label (t :export/exporting)})
   (when-not (shui-dialog/get-modal :export-indicator)
     (shui/dialog-open! indicator-progress
                        {:id :export-indicator

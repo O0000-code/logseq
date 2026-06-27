@@ -62,7 +62,6 @@
        :preferred-start-of-week (state/get-start-of-week)
        :current-graph           (state/get-current-repo)
        :show-brackets           (state/show-brackets?)
-       :enabled-journals        (state/enable-journals?)
        :enabled-flashcards      (state/enable-flashcards?)
        :me                      (state/get-me)}))))
 
@@ -172,3 +171,9 @@
       (if-let [page-name (and page? (:name params))]
         (route-handler/redirect-to-page! page-name {:anchor (:anchor query) :push false})
         (rfe/replace-state k params query)))))
+
+(def get_current_route
+  (fn []
+    (some-> (state/get-route-match)
+            (dissoc :data)
+            (bean/->js))))

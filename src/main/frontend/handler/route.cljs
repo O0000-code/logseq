@@ -3,10 +3,10 @@
   (:require [clojure.string :as string]
             [frontend.config :as config]
             [frontend.context.i18n :refer [t]]
-            [frontend.date :as date]
             [frontend.db :as db]
             [frontend.db.model :as model]
             [frontend.extensions.pdf.utils :as pdf-utils]
+            [frontend.handler.graph :as graph-handler]
             [frontend.handler.notification :as notification]
             [frontend.handler.property.util :as pu]
             [frontend.handler.recent :as recent-handler]
@@ -70,6 +70,15 @@
     {:to :page
      :path-params {:name (str page-name)}}))
 
+(defn- current-graph-query-params
+  []
+  (when-let [graph-id (graph-handler/current-graph-id)]
+    {:graph-id graph-id}))
+
+(defn- merge-query-params
+  [route params]
+  (update route :query-params merge params))
+
 (defn redirect-to-page!
   "`page-name` can be a block uuid or name, prefer to use uuid than name when possible"
   ([page-name]
@@ -84,24 +93,40 @@
                 (not= common-config/recycle-page-name (:block/title page))
                 (or (and (ldb/hidden? page) (not (ldb/property? page)))
                     (and (ldb/built-in? page) (ldb/private-built-in-page? page))))
-         (notification/show! "Cannot go to an internal page." :warning)
+         (notification/show! (t :nav/cannot-go-to-internal-page) :warning)
          (if-let [source (and (not ignore-alias?) (db/get-alias-source-page (state/get-current-repo) (:db/id page)))]
            (redirect-to-page! (:block/uuid source) (assoc opts :ignore-alias? true))
            (do
              (when-let [db-id (:db/id page)]
                (recent-handler/add-page-to-recent! db-id click-from-recent?))
              (let [m (cond->
-                      (default-page-route (str page-name))
+                      (merge-query-params
+                       (default-page-route (str page-name))
+                       (current-graph-query-params))
 
                        block-id
-                       (assoc :query-params {:anchor (str "ls-block-" block-id)})
+                       (merge-query-params {:anchor (str "ls-block-" block-id)})
 
                        anchor
-                       (assoc :query-params {:anchor anchor})
+                       (merge-query-params {:anchor anchor})
 
                        (boolean? push)
                        (assoc :push push))]
-               (redirect! m)))))))))
+              (redirect! m)))))))))
+
+(defn built-in-page-title
+  [page-name]
+  (case page-name
+    common-config/library-page-name
+    (t :library/title)
+
+    common-config/quick-add-page-name
+    (t :editor.quick-add/title)
+
+    common-config/recycle-page-name
+    (t :storage.recycle/title)
+
+    nil))
 
 (defn get-title
   [name path-params]
@@ -109,19 +134,19 @@
     :home
     "Logseq"
     :graphs
-    "Graphs"
+    (t :mobile.tab/graphs)
     :graph
-    (t :graph)
+    (t :nav/graph)
     :all-files
-    (t :all-files)
+    (t :nav/all-files)
     :all-pages
-    (t :all-pages)
+    (t :nav.all-pages/title)
     :all-journals
-    (t :all-journals)
+    (t :nav/all-journals)
     :file
-    (str "File " (:path path-params))
+    (t :file/title (:path path-params))
     :new-page
-    "Create a new page"
+    (t :page/create)
     :page
     (let [name (:name path-params)
           page (db/get-page name)
@@ -138,19 +163,20 @@
           block-name (:block/title page)
           block-name' (when block-name
                         (if (common-util/uuid-string? block-name)
-                          "Untitled"
-                          block-name))]
+                          (t :ui/untitled)
+                          (or (built-in-page-title block-name)
+                               block-name)))]
       (or block-name'
           block-title
           "Logseq"))
     :tag
     (str "#"  (:name path-params))
     :diff
-    "Git diff"
+    (t :graph/diff)
     :settings
-    "Settings"
+    (t :nav/settings)
     :import
-    "Import data into Logseq"
+    (t :import/title)
     "Logseq"))
 
 (defn update-page-title!
@@ -203,10 +229,11 @@
 
 (defn sidebar-journals!
   []
-  (state/sidebar-add-block!
-   (state/get-current-repo)
-   (:db/id (db/get-page (date/today)))
-   :page))
+  (when-let [page (db/get-today-journal-page)]
+    (state/sidebar-add-block!
+     (state/get-current-repo)
+     (:db/id page)
+     :page)))
 
 (defn go-to-journals!
   []

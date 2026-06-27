@@ -1,9 +1,10 @@
 (ns frontend.components.class
   (:require [frontend.components.block :as block]
+            [frontend.context.i18n :refer [t]]
             [frontend.db.model :as model]
             [frontend.state :as state]
             [frontend.ui :as ui]
-            [rum.core :as rum]))
+            [io.factorhouse.hsx.core :as hsx]))
 
 (defn class-children-aux
   [class {:keys [default-collapsed?] :as opts}]
@@ -22,7 +23,7 @@
               {:default-collapsed? default-collapsed?})
              title)))])))
 
-(rum/defc class-children
+(hsx/defc class-children
   [class]
   (when (seq (:logseq.property.class/_extends class))
     (let [children-pages (set (model/get-structured-children (state/get-current-repo) (:db/id class)))
@@ -30,7 +31,7 @@
           default-collapsed? (> (count children-pages) 30)]
       (ui/foldable
        [:div.font-medium.opacity-50
-        (str "Children (" (count children-pages) ")")]
+        (t :property/children-count (count children-pages))]
        [:div.ml-1.mt-2 (class-children-aux class {:default-collapsed? default-collapsed?})]
        {:default-collapsed? false
         :title-trigger? true}))))

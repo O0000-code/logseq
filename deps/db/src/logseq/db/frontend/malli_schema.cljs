@@ -290,7 +290,8 @@
    [:block/refs {:optional true} [:set :int]]
    [:block/tx-id {:optional true} :int]
    [:block/collapsed? {:optional true} :boolean]
-   [:block/warning {:optional true} [:keyword]]])
+   [:block/warning {:optional true} [:keyword]]
+   [:logseq.property/created-by-ref {:optional true} :int]])
 
 (def page-attrs
   "Common attributes for pages"
@@ -379,11 +380,11 @@
                        (let [ident (:db/ident m)]
 
                          (cond
-                           (or (some->> ident db-property/logseq-property?)
+                           (or (and ident (db-property/logseq-property? ident))
                                (contains? db-property/db-attribute-properties (:db/ident m)))
                            :internal
 
-                           (some->> ident db-property/plugin-property?)
+                           (and ident (db-property/plugin-property? ident))
                            :plugin
 
                            :else
@@ -441,13 +442,13 @@
     [:block/uuid :uuid]
     [:logseq.property.reaction/emoji-id :string]
     [:logseq.property.reaction/target :int]
-    [:block/properties {:optional true} block-properties]
     [:block/created-at :int]
     [:block/tx-id {:optional true} :int]
+    [:block/properties {:optional true} block-properties]
     [:block/refs {:optional true} [:set :int]]]))
 
 (def property-history-block*
-  [:map
+  [:map {:error/path ["property-history-block"]}
    [:block/uuid :uuid]
    [:block/created-at :int]
    [:block/updated-at {:optional true} :int]
@@ -455,6 +456,7 @@
    [:logseq.property.history/property :int]
    [:logseq.property.history/ref-value {:optional true} :int]
    [:logseq.property.history/scalar-value {:optional true} :any]
+   [:block/properties {:optional true} block-properties]
    [:block/tx-id {:optional true} :int]])
 
 (def property-history-block

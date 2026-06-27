@@ -1,13 +1,13 @@
 (ns frontend.components.db-based.page
   "Page components only for DB graphs"
   (:require [frontend.components.property.config :as property-config]
+            [frontend.context.i18n :refer [t]]
             [frontend.db :as db]
-            [frontend.db-mixins :as db-mixins]
             [frontend.util :as util]
             [logseq.shui.ui :as shui]
-            [rum.core :as rum]))
+            [io.factorhouse.hsx.core :as hsx]))
 
-(rum/defc configure-property < rum/reactive db-mixins/query
+(hsx/defc configure-property
   [page]
   (let [page (db/sub-block (:db/id page))]
     (shui/tabs-trigger
@@ -23,4 +23,4 @@
                                      :align "start"
                                      :as-dropdown? true
                                      :dropdown-menu? true}))}
-     "Configure property")))
+     (t :property/configure))))

@@ -1,19 +1,25 @@
 (ns electron.core
   (:require ["/electron/utils" :as js-utils]
             ["electron" :refer [BrowserWindow Menu app protocol ipcMain dialog shell] :as electron]
+            ["fs-extra" :as fs]
 
             ["os" :as os]
             ["path" :as node-path]
             [cljs-bean.core :as bean]
             [clojure.string :as string]
+            [electron.cli-install :as cli-install]
+            [electron.configs :as cfgs]
             [electron.db :as db]
+            [electron.embedding-server :as embedding-server]
             [electron.exceptions :as exceptions]
             [electron.handler :as handler]
+            [electron.i18n :as i18n :refer [t]]
             [electron.logger :as logger]
+            [electron.release-warning :as release-warning]
             [electron.server :as server]
             [electron.updater :refer [init-updater] :as updater]
             [electron.url :refer [logseq-url-handler]]
-            [electron.utils :refer [*win mac? linux? dev? get-win-from-sender
+            [electron.utils :refer [*win mac? dev? get-win-from-sender
                                     decode-protected-assets-schema-path send-to-renderer]
              :as utils]
             [electron.window :as win]
@@ -25,22 +31,21 @@
 (defonce FILE_LSP_SCHEME "lsp")
 (defonce FILE_ASSETS_SCHEME "assets")
 (defonce LSP_PROTOCOL (str FILE_LSP_SCHEME "://"))
-(defonce PLUGIN_URL (str LSP_PROTOCOL "logseq.io/"))
 (defonce STATIC_URL (str LSP_PROTOCOL "logseq.com/"))
+(defonce PLUGIN_URL (str LSP_PROTOCOL "logseq.io/plugins/"))
+(defonce EXTERNAL_PLUGIN_URL (str LSP_PROTOCOL "logseq.io/external/"))
+(defonce HOST_PLUGIN_URL (str STATIC_URL "plugins/"))
+(defonce HOST_EXTERNAL_PLUGIN_URL (str STATIC_URL "external/"))
 (defonce PLUGINS_ROOT (.join node-path (.homedir os) ".logseq/plugins"))
 
 (defonce *setup-fn (volatile! nil))
 (defonce *teardown-fn (volatile! nil))
 (defonce *quit-dirty? (volatile! true))
 
-;; Handle creating/removing shortcuts on Windows when installing/uninstalling.
-(when (js/require "electron-squirrel-startup") (.quit app))
-
 (defn setup-updater! [^js win]
   ;; manual/auto updater
-  (when-not linux?
-    (init-updater {:repo   "logseq/logseq"
-                   :win    win})))
+  (init-updater {:repo   "logseq/logseq"
+                 :win    win}))
 
 (defn open-url-handler
   "win - the main window instance (first renderer process)
@@ -96,13 +101,42 @@
    (fn [^js request callback]
      (let [url (.-url request)
            url' ^js (js/URL. url)
-           [_ ROOT] (if (string/starts-with? url PLUGIN_URL)
-                      [PLUGIN_URL PLUGINS_ROOT]
-                      [STATIC_URL js/__dirname])
-
+           plugin-url? (or (string/starts-with? url PLUGIN_URL)
+                           (string/starts-with? url HOST_PLUGIN_URL))
+           external-plugin-url? (or (string/starts-with? url EXTERNAL_PLUGIN_URL)
+                                    (string/starts-with? url HOST_EXTERNAL_PLUGIN_URL))
+           compatible-plugin-url? (and (string/starts-with? url (str LSP_PROTOCOL "logseq.io/"))
+                                       (not external-plugin-url?))
            path' (.-pathname url')
-           path' (utils/safe-decode-uri-component path')
-           path' (.join node-path ROOT path')]
+           path' (cond
+                   plugin-url?
+                   (->> path'
+                        (utils/safe-decode-uri-component)
+                        (#(string/replace-first % #"^/plugins" ""))
+                        (.join node-path PLUGINS_ROOT))
+
+                   compatible-plugin-url?
+                   (->> path'
+                        (utils/safe-decode-uri-component)
+                        (.join node-path PLUGINS_ROOT))
+
+                   external-plugin-url?
+                   (let [external-path (subs path' (count "/external/"))
+                         separator-index (string/index-of external-path "/")
+                         encoded-root (if separator-index
+                                        (subs external-path 0 separator-index)
+                                        external-path)
+                         relative-path (if separator-index
+                                         (subs external-path separator-index)
+                                         "")
+                         root (utils/safe-decode-uri-component encoded-root)
+                         relative-path (utils/safe-decode-uri-component relative-path)]
+                     (.join node-path root relative-path))
+
+                   :else
+                   (->> path'
+                        (utils/safe-decode-uri-component)
+                        (.join node-path js/__dirname)))]
 
        (callback #js {:path path'}))))
 
@@ -177,7 +211,7 @@
   (let [about-fn (fn []
                    (.showMessageBox dialog (clj->js {:title "Logseq"
                                                      :icon (node-path/join js/__dirname "icons/logseq.png")
-                                                     :message (str "Version " updater/electron-version)})))
+                                                     :message (t :electron/version updater/electron-version)})))
         template (if mac?
                    [{:label (.-name app)
                      :submenu [{:role "about"}
@@ -192,7 +226,7 @@
                    [])
         template (conj template
                        {:role "fileMenu"
-                        :submenu [{:label "New Window"
+                        :submenu [{:label (t :electron/new-window)
                                    :click (fn [] (handler/open-new-window! nil))
                                    :accelerator (if mac?
                                                   "CommandOrControl+N"
@@ -206,22 +240,30 @@
                        {:role "editMenu"}
                        {:role "viewMenu"}
                        {:role "windowMenu"
-                        :submenu (when-not mac? [{:role "minimize"}
-                                                 {:role "zoom"}
-                                                 ;; Disable Control+W shortcut
-                                                 {:role "close"
-                                                  :accelerator false}])})
+                        :submenu
+                        (concat
+                          (when-not mac?
+                            [{:role "minimize"}
+                             {:role "zoom"}
+                             ;; Disable Control+W shortcut
+                             {:role "close"
+                              :accelerator false}])
+                          [{:label "Always on Top"
+                            :type "checkbox"
+                            :click (fn [^js menuItem ^js browserWindow]
+                                     ;; switch alwaysOnTop state
+                                     (.setAlwaysOnTop browserWindow (.-checked menuItem)))}])})
         ;; Windows has no about role
         template (conj template
                        (if mac?
                          {:role "help"
-                          :submenu [{:label "Official Documentation"
+                          :submenu [{:label (t :electron/official-docs)
                                      :click #(.openExternal shell "https://docs.logseq.com/")}]}
                          {:role "help"
-                          :submenu [{:label "Official Documentation"
+                          :submenu [{:label (t :electron/official-docs)
                                      :click #(.openExternal shell "https://docs.logseq.com/")}
                                     {:role "about"
-                                     :label "About Logseq"
+                                     :label (t :electron/about)
                                      :click about-fn}]}))
         ;; Enable Cmd/Ctrl+= Zoom In
         template (conj template
@@ -251,6 +293,93 @@
     (when-let [url (find-deeplink-url (rest (js->clj (.-argv js/process))))]
       (open-url-handler win url))))
 
+(defn- maybe-warn-wrong-release!
+  []
+  (when (release-warning/x64-on-apple-silicon?
+         {:platform (.-platform js/process)
+          :arch (.-arch js/process)
+          :running-under-arm64-translation? (boolean (.-runningUnderARM64Translation app))})
+    (-> (.showMessageBox
+         dialog
+         (clj->js (assoc (release-warning/warning-dialog-options t) :title "Logseq")))
+        (.then
+         (fn [result]
+           (when-let [url (release-warning/selected-release-url (.-response result))]
+             (.openExternal shell url))))
+        (.catch
+         (fn [error]
+           (logger/warn :electron/wrong-release-warning-failed error))))))
+
+(defn- writable-dir?
+  [dir]
+  (try
+    (when (and (string? dir)
+               (fs/existsSync dir)
+               (.isDirectory (fs/statSync dir)))
+      (fs/accessSync dir (aget fs "constants" "W_OK"))
+      true)
+    (catch :default _
+      false)))
+
+(defn- ensure-dir!
+  [dir]
+  (when (and (string? dir) (not (fs/existsSync dir)))
+    (fs/mkdirSync dir #js {:recursive true})))
+
+(defn- path-join
+  [& paths]
+  (apply node-path/join paths))
+
+(defn- preferred-unix-cli-dir
+  []
+  (cli-install/preferred-unix-cli-dir
+   {:home-dir (.homedir os)
+    :path-join path-join
+    :ensure-dir! ensure-dir!
+    :writable-dir? writable-dir?}))
+
+(defn- preferred-win-cli-dir
+  []
+  (let [path-env (or (.-PATH js/process.env) (.-Path js/process.env))
+        path-dirs (cli-install/split-path-env path-env utils/win32?)
+        local-appdata (.-LOCALAPPDATA js/process.env)
+        windows-apps-dir (when local-appdata
+                           (node-path/join local-appdata "Microsoft" "WindowsApps"))]
+    (or (when windows-apps-dir
+          (ensure-dir! windows-apps-dir)
+          (when (writable-dir? windows-apps-dir)
+            windows-apps-dir))
+        (some #(when (writable-dir? %) %) path-dirs))))
+
+(defn- cli-script-path
+  []
+  (if (.-isPackaged ^js app)
+    (node-path/join js/process.resourcesPath "app.asar" "js" "logseq-cli.js")
+    (node-path/join js/__dirname "logseq-cli.js")))
+
+(defn- install-cli-launcher!
+  []
+  (let [cli-path (cli-script-path)
+        cli-dir! #(if utils/win32?
+                    (preferred-win-cli-dir)
+                    (preferred-unix-cli-dir))]
+    (cli-install/install-cli-launcher!
+     {:windows? utils/win32?
+      :cli-path cli-path
+      :cli-dir! cli-dir!
+      :exe-path (.getPath app "exe")
+      :appimage-path (.-APPIMAGE js/process.env)
+      :path-join path-join
+      :exists? #(fs/existsSync %)
+      :read-file! #(.readFileSync fs % "utf8")
+      :write-file! #(.writeFileSync fs %1 %2 "utf8")
+      :chmod! #(fs/chmodSync %1 %2)
+      :show-message-box! #(.showMessageBox dialog (clj->js %))
+      :show-error-box! #(.showErrorBox dialog %1 %2)
+      :t t
+      :log-info! logger/info
+      :log-warn! logger/warn})))
+
 (defn- on-app-ready!
   [^js app']
   (.on app' "ready"
@@ -271,9 +400,11 @@
            (js-utils/disableXFrameOptions win)
 
            (db/ensure-graphs-dir!)
+           (install-cli-launcher!)
 
            ;; Windows/Linux: handle deeplink URL passed on first launch via argv
            (handle-initial-deeplink! win)
+           (maybe-warn-wrong-release!)
 
            (vreset! *setup-fn
                     (fn []
@@ -281,11 +412,16 @@
                             t2 (setup-app-manager! win)
                             t3 (handler/set-ipc-handler! win)
                             t4 (server/setup! win)
+                            t5 (when (cfgs/semantic-search-enabled?)
+                                 (embedding-server/setup! app'))
                             tt (exceptions/setup-exception-listeners!)]
 
                         (vreset! *teardown-fn
-                                 #(doseq [f [t0 t1 t2 t3 t4 tt]]
-                                    (and f (f)))))))
+                                 #(-> (handler/stop-all-db-workers!)
+                                      (p/finally
+                                        (fn []
+                                          (doseq [f [t0 t1 t2 t3 t4 t5 tt]]
+                                            (and f (f))))))))))
 
            ;; setup effects
            (@*setup-fn)
@@ -314,7 +450,11 @@
                                     :else
                                     nil)))))
            (.on app' "before-quit" (fn [_e]
-                                     (reset! win/*quitting? true)))
+                                     (reset! win/*quitting? true)
+                                     (-> (handler/stop-all-db-workers!)
+                                         (p/finally
+                                           (fn []
+                                             (embedding-server/stop!))))))
 
            (.on app' "activate" #(when @*win (.show win)))))))
 
@@ -324,6 +464,7 @@
     (let [privileges {:standard        true
                       :secure          true
                       :bypassCSP       true
+                      :corsEnabled     true
                       :supportFetchAPI true}]
       (.registerSchemesAsPrivileged
        protocol (bean/->js [{:scheme     LSP_SCHEME
@@ -331,13 +472,11 @@
                             {:scheme     FILE_LSP_SCHEME
                              :privileges privileges}
                             {:scheme     FILE_ASSETS_SCHEME
-                             :privileges {:standard        false
-                                          :secure          false
-                                          :bypassCSP       false
-                                          :supportFetchAPI false}}]))
+                             :privileges (assoc privileges :stream true)}]))
 
       (register-default-protocol-client! app)
       (set-app-menu!)
+      (i18n/on-locale-change! set-app-menu!)
       (setup-deeplink!)
 
       (.on app "second-instance"
@@ -350,7 +489,11 @@
 
       (.on app "window-all-closed" (fn []
                                      (logger/debug "window-all-closed" "Quitting...")
-                                     (.quit app)))
+                                     (-> (handler/stop-all-db-workers!)
+                                         (p/finally
+                                           (fn []
+                                             (embedding-server/stop!)
+                                             (.quit app))))))
       (on-app-ready! app))))
 
 (defn start []

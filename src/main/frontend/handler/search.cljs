@@ -3,20 +3,16 @@
   (:require [clojure.string :as string]
             [dommy.core :as dom]
             [electron.ipc :as ipc]
-            [frontend.common.missionary :as c.m]
             [frontend.common.search-fuzzy :as fuzzy]
             [frontend.config :as config]
             [frontend.db :as db]
-            [frontend.handler.notification :as notification]
             [frontend.search :as search]
             [frontend.state :as state]
             [frontend.util :as util]
-            [logseq.db :as ldb]
-            [missionary.core :as m]
             [promesa.core :as p]))
 
 (defn search
-  "The aggretation of search results"
+  "The aggregation of search results"
   ([q]
    (search (state/get-current-repo) q))
   ([repo q]
@@ -103,20 +99,8 @@
             :search/q ""}]
      (swap! state/state merge m)
      (when config/lsp-enabled? (state/reset-plugin-search-engines)))
-   (when (and clear-search-mode? (not= (state/get-search-mode) :graph))
+   (when clear-search-mode?
      (state/set-search-mode! :global))))
-
-(defn rebuild-embeddings!
-  [repo]
-  (when (ldb/get-key-value (db/get-db) :logseq.kv/graph-text-embedding-model-name)
-    (c.m/run-task
-      ::rebuild-embeddings
-      (m/sp
-        (c.m/<?
-         (state/<invoke-db-worker :thread-api/vec-search-cancel-indexing repo))
-        (c.m/<?
-         (state/<invoke-db-worker :thread-api/vec-search-embedding-graph repo {:reset-embedding? true})))
-      :succ (constantly nil))))
 
 (defn rebuild-indices!
   ([]
@@ -124,13 +108,10 @@
   ([notice?]
    (println "Starting to rebuild search indices!")
    (when-let [repo (state/get-current-repo)]
+     (when notice?
+       (state/set-state! [:search/index-build-notify-repos repo] true))
      (p/do!
-      (search/rebuild-indices!)
-      (rebuild-embeddings! repo)
-      (when notice?
-        (notification/show!
-         "Search indices rebuilt successfully!"
-         :success))))))
+      (search/rebuild-indices!)))))
 
 (defn highlight-exact-query
   [content q]
@@ -168,4 +149,4 @@
                                         content
                                         result)))
                              (conj result [:span content])))]
-            [:span {:class "m-0"} elements]))))))
+            (into [:span {:class "m-0"}] elements)))))))

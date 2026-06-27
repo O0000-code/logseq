@@ -12,6 +12,8 @@
             [promesa.core :as p]))
 
 (def fuzzy-search fuzzy/fuzzy-search)
+(def fuzzy-search-multi fuzzy/fuzzy-search-multi)
+(def hanzi->initials fuzzy/hanzi->initials)
 
 (defn get-engine
   [repo]
@@ -22,7 +24,8 @@
   (when-let [engine (get-engine repo)]
     (let [q (fuzzy/search-normalize q (state/enable-search-remove-accents?))]
       (when-not (string/blank? q)
-        (protocol/query engine q option)))))
+        (protocol/query engine q (assoc option :feature/enable-semantic-search?
+                                        (state/enable-semantic-search?)))))))
 
 (defn file-search
   ([q]

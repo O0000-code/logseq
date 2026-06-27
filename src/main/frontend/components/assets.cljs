@@ -19,7 +19,7 @@
    [logseq.shui.ui :as shui]
    [medley.core :as medley]
    [promesa.core :as p]
-   [rum.core :as rum]))
+   [io.factorhouse.hsx.core :as hsx]))
 
 (defn -get-all-formats
   []
@@ -30,12 +30,12 @@
                config/markup-formats)
        (map #(hash-map :id % :value (name %)))))
 
-(rum/defc input-auto-complete
+(hsx/defc input-auto-complete
   [{:keys [items item-cp class
            on-chosen on-keydown input-opts]}]
 
-  (let [[*input-val, set-*input-val] (rum/use-state (atom nil))
-        [input-empty?, set-input-empty?] (rum/use-state true)]
+  (let [[*input-val, set-*input-val] (hooks/use-state (atom nil))
+        [input-empty?, set-input-empty?] (hooks/use-state true)]
 
     (hooks/use-effect!
      #(set-input-empty? (string/blank? @*input-val))
@@ -59,28 +59,28 @@
                         (fn? on-keydown)
                         (assoc :on-key-down #(on-keydown % *input-val)))})))
 
-(rum/defc confirm-dir-with-alias-name
+(hsx/defc confirm-dir-with-alias-name
   [dir set-dir!]
 
-  (let [[val set-val!] (rum/use-state "")
+  (let [[val set-val!] (hooks/use-state "")
         on-submit (fn []
                     (when-not (string/blank? val)
                       (if-not (assets-handler/get-alias-by-name val)
                         (do (set-dir! val dir nil)
                             (shui/dialog-close!))
                         (notification/show!
-                         (util/format "Alias name of [%s] already exists!" val) :warning))))]
+                         (t :asset/alias-already-exists val) :warning))))]
 
     [:div.cp__assets-alias-name-content
-     [:h1.text-2xl.opacity-90.mb-6 "What's the alias name of this selected directory?"]
-     [:p [:strong "Directory path:"]
+     [:h1.text-2xl.opacity-90.mb-6 (t :asset/alias-name-dialog-title)]
+     [:p [:strong (t :asset/alias-directory-path-label)]
       [:a {:on-click #(when (util/electron?)
                         (js/apis.openPath dir))} dir]]
-     [:p [:strong "Alias name:"]
+     [:p [:strong (t :asset/alias-name-label)]
       [:input.px-1.border.rounded
        {:autoFocus   true
         :value       val
-        :placeholder "eg. Books"
+        :placeholder (t :asset/alias-name-placeholder)
         :on-change   (fn [^js e]
                        (set-val! (util/trim-safe (.. e -target -value))))
         :on-key-up   (fn [^js e]
@@ -90,22 +90,20 @@
 
      [:div.pt-6.flex.justify-end
       (ui/button
-       "Save"
+       (t :ui/save)
        :disabled (string/blank? val)
        :on-click on-submit)]]))
 
-(rum/defc restart-button
+(hsx/defc restart-button
   []
   (ui/button (t :plugin/restart)
              :on-click #(js/logseq.api.relaunch)
              :small? true :intent "logseq"))
 
-(rum/defcs ^:large-vars/data-var alias-directories
-  < rum/reactive
-  (rum/local nil ::ext-editing-dir)
-  [_state]
-  (let [*ext-editing-dir (::ext-editing-dir _state)
-        directories      (into [] (state/sub :assets/alias-dirs))
+(hsx/defc ^:large-vars/data-var alias-directories
+  []
+  (let [[ext-editing-dir set-ext-editing-dir!] (hooks/use-state nil)
+        directories      (into [] (state/use-sub :assets/alias-dirs))
         pick-exist       assets-handler/get-alias-by-dir
         set-dir!         (fn [name dir exts]
                            (when (and name dir)
@@ -159,7 +157,7 @@
               {:key ext :on-click #(del-ext dir ext)}
               [:span ext]
               (ui/icon "circle-minus")])
-           (if (= dir @*ext-editing-dir)
+           (if (= dir ext-editing-dir)
              (input-auto-complete
               {:items        (-get-all-formats)
 
@@ -169,51 +167,48 @@
 
                :on-chosen    (fn [{:keys [value]}]
                                (add-ext dir value)
-                               (reset! *ext-editing-dir nil))
+                               (set-ext-editing-dir! nil))
                :on-keydown   (fn [^js e *input-val]
                                (let [^js input (.-target e)]
                                  (case (.-which e)
                                    27                       ;; esc
                                    (do (if-not (string/blank? (.-value input))
                                          (reset! *input-val "")
-                                         (reset! *ext-editing-dir nil))
+                                         (set-ext-editing-dir! nil))
                                        (util/stop e))
 
                                    :dune)))
-               :input-opts   {:class       "cp__assets-alias-ext-input"
-                              :placeholder "E.g. mp3"
+                              :input-opts   {:class       "cp__assets-alias-ext-input"
+                              :placeholder (t :asset/file-extension-placeholder)
                               :on-blur
-                              #(reset! *ext-editing-dir nil)}})
+                              #(set-ext-editing-dir! nil)}})
 
              [:small.ext-label.is-plus
-              {:on-click #(reset! *ext-editing-dir dir)}
-              (ui/icon "plus") "Acceptable file extensions"])]
+              {:on-click #(set-ext-editing-dir! dir)}
+              (ui/icon "plus") (t :asset/acceptable-file-extensions)])]
 
           [:span.ctrls.flex.space-x-3.text-xs.opacity-30.hover:opacity-100.whitespace-nowrap.hidden.mt-1
            [:a {:on-click #(rm-dir dir)} (ui/icon "trash-x")]]]])]
 
      [:p.pt-2
       (ui/button
-       "+ Add directory"
+       (t :asset/add-directory)
        :on-click #(p/let [path (ipc/ipc :openDialog)]
                     (when-not (or (string/blank? path)
                                   (pick-exist path))
                       (confirm-dir path set-dir!)))
        :small? true)]]))
 
-(rum/defcs settings-content
-  < rum/reactive
-  (rum/local (state/sub :assets/alias-enabled?) ::alias-enabled?)
-  [_state]
-
-  (let [*pre-alias-enabled?    (::alias-enabled? _state)
-        alias-enabled?         (state/sub :assets/alias-enabled?)
-        alias-enabled-changed? (not= @*pre-alias-enabled? alias-enabled?)]
+(hsx/defc settings-content
+  []
+  (let [alias-enabled?         (state/use-sub :assets/alias-enabled?)
+        [pre-alias-enabled?]   (hooks/use-state alias-enabled?)
+        alias-enabled-changed? (not= pre-alias-enabled? alias-enabled?)]
 
     [:div.cp__assets-settings.panel-wrap
      [:div.it
       [:label.block.text-sm.font-medium.leading-5.opacity-70
-       "Alias directories"]
+      (t :asset/alias-directories)]
       [:div (ui/toggle
              alias-enabled?
              #(state/set-assets-alias-enabled! (not alias-enabled?))
@@ -223,12 +218,12 @@
 
      (when alias-enabled?
        [:div.pt-4
-        [:h2.font-bold.opacity-80 "Selected directories:"]
+        [:h2.font-bold.opacity-80 (t :asset/selected-directories)]
         (alias-directories)])]))
 
-(rum/defc edit-external-url-form
+(hsx/defc edit-external-url-form
   [asset-block {:keys [url title on-saved]}]
-  (let [[saving? set-saving?] (rum/use-state false)
+  (let [[saving? set-saving?] (hooks/use-state false)
         create? (nil? asset-block)]
     [:form.pt-3.flex.flex-col.gap-2
      {:on-submit (fn [^js e]
@@ -261,9 +256,9 @@
                            (p/then #(when on-saved (on-saved asset-block false)))
                            (p/catch err-handle)
                            (p/finally #(set-saving? false))))))}
-     [:label [:span.block.pb-2.text-sm.opacity-60 "Asset title:"]
+     [:label [:span.block.pb-2.text-sm.opacity-60 (t :asset/title-label)]
       (shui/input {:small true :default-value title :name "title"})]
-     [:label [:span.block.pb-2.text-sm.opacity-60 "Asset external url:"]
+     [:label [:span.block.pb-2.text-sm.opacity-60 (t :asset/external-url-label)]
       [:span.flex.items-center.gap-2
        (shui/input {:small true :default-value url :name "src"})
        (when (util/electron?)
@@ -272,16 +267,16 @@
            :on-click (fn [^js e]
                        (.preventDefault e)
                        (p/let [^js ret (ipc/ipc :showOpenDialog {:properties ["openFile"]
-                                                                 :title "Select Asset File"})]
+                                                                 :title (t :asset/select-file)})]
                          (let [file-path (some-> ret (bean/->clj) :filePaths (first))]
                            (when (not (string/blank? file-path))
                              (let [^js input (-> (.-target e) (.closest "form") (.querySelector "input[name='src']"))]
                                (set! (.-value input) file-path))))))}
-          "Select from disk"))]]
+          (t :asset/select-from-disk)))]]
      [:div.flex.justify-end.pt-3
-      (ui/button (if create? "Create" "Save") {:disabled saving?})]]))
+      (ui/button (if create? (t :ui/create) (t :ui/save)) {:disabled saving?})]]))
 
-(rum/defc edit-external-url-content
+(hsx/defc edit-external-url-content
   [asset-block pdf-current]
   [:div.edit-external-url-content
    (let [on-saved! (fn [asset-block update?]
@@ -300,7 +295,7 @@
           (shui/alert
            {:variant "warning"}
            (shui/alert-description
-            "Creating a local asset from an external one. PDF annotations require a local asset to work properly."))
+            (t :asset/create-local-copy-warning)))
 
           (let [title (util/node-path.basename url)]
             (edit-external-url-form asset-block {:url url :title title :on-saved on-saved!}))])))])

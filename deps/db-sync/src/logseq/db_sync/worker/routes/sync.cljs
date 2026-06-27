@@ -4,6 +4,8 @@
 (def ^:private route-data
   [["/health" {:methods {"GET" :sync/health}}]
    ["/pull" {:methods {"GET" :sync/pull}}]
+   ["/repair/blocks" {:methods {"GET" :sync/repair-blocks}}]
+   ["/checksum/diagnostics" {:methods {"GET" :sync/checksum-diagnostics}}]
    ["/snapshot/download" {:methods {"GET" :sync/snapshot-download}}]
    ["/snapshot/stream" {:methods {"GET" :sync/snapshot-stream}}]
    ["/admin/reset" {:methods {"DELETE" :sync/admin-reset}}]

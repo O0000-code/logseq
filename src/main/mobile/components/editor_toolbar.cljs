@@ -1,6 +1,7 @@
 (ns mobile.components.editor-toolbar
   "Mobile editor toolbar"
   (:require [frontend.commands :as commands]
+            [frontend.context.i18n :refer [t]]
             [frontend.handler.editor :as editor-handler]
             [frontend.handler.history :as history]
             [frontend.mobile.camera :as mobile-camera]
@@ -11,10 +12,7 @@
             [goog.dom :as gdom]
             [logseq.common.util.page-ref :as page-ref]
             [logseq.shui.hooks :as hooks]
-            [mobile.components.recorder :as recorder]
-            [mobile.init :as mobile-init]
-            [promesa.core :as p]
-            [rum.core :as rum]))
+            [io.factorhouse.hsx.core :as hsx]))
 
 (defn- blur-if-compositing
   "Call blur on the textarea if it is in composition mode so IME can commit composing text."
@@ -38,28 +36,39 @@
 
 (defn- insert-page-ref!
   []
-  (let [{:keys [block]} (editor-handler/get-state)]
-    (when block
-      (let [input (state/get-input)]
-        (state/clear-editor-action!)
-        (let [selection (editor-handler/get-selection-and-format)
-              {:keys [selection-start selection-end selection]} selection]
-          (if selection
-            (do
-              (editor-handler/delete-and-update input selection-start selection-end)
-              (editor-handler/insert (page-ref/->page-ref selection)))
-            (insert-text page-ref/left-and-right-brackets
-                         {:backward-pos 2
-                          :check-fn (fn [_ _ _]
-                                      (let [input (state/get-input)
-                                            new-pos (cursor/get-caret-pos input)]
-                                        (state/set-editor-action-data! {:pos new-pos})
-                                        (commands/handle-step [:editor/search-page])))})))))))
+  (when (state/get-edit-input-id)
+    (let [input (state/get-input)]
+      (state/clear-editor-action!)
+      (let [selection (editor-handler/get-selection-and-format)
+            {:keys [selection-start selection-end selection]} selection]
+        (if (and input selection)
+          (do
+            (editor-handler/delete-and-update input selection-start selection-end)
+            (editor-handler/insert (page-ref/->page-ref selection)))
+          (insert-text page-ref/left-and-right-brackets
+                       {:backward-pos 2
+                        :check-fn (fn [_ _ _]
+                                    (let [input (state/get-input)
+                                          new-pos (cursor/get-caret-pos input)]
+                                      (state/set-editor-action-data! {:pos new-pos})
+                                      (commands/handle-step [:editor/search-page])))}))))))
+
+(defn- comment-editor-config
+  []
+  (let [config (last (state/get-editor-args))]
+    (when (:comment-editor? config)
+      config)))
+
+(defn- comment-asset-target-block
+  []
+  (:comment-asset-target-block (comment-editor-config)))
 
 (defn- indent-outdent-action
   [indent?]
   {:id (if indent? "indent" "outdent")
-   :title (if indent? "Indent" "Outdent")
+   :title (if indent?
+            (t :mobile.toolbar/indent)
+            (t :mobile.toolbar/outdent))
    :system-icon (if indent? "arrow.right" "arrow.left")
    :handler (fn []
               (blur-if-compositing)
@@ -68,7 +77,7 @@
 (defn- undo-action
   []
   {:id "undo"
-   :title "Undo"
+  :title (t :mobile.toolbar/undo)
    :system-icon "arrow.uturn.backward"
    :event? true
    :handler (fn []
@@ -78,7 +87,7 @@
 (defn- redo-action
   []
   {:id "redo"
-   :title "Redo"
+  :title (t :mobile.toolbar/redo)
    :system-icon "arrow.uturn.forward"
    :event? true
    :handler (fn []
@@ -88,7 +97,7 @@
 (defn- todo-action
   []
   {:id "todo"
-   :title "Todo"
+  :title (t :mobile.toolbar/todo)
    :system-icon "checkmark.square"
    :event? true
    :handler (fn []
@@ -98,7 +107,7 @@
 (defn- tag-action
   []
   {:id "tag"
-   :title "Tag"
+  :title (t :mobile.toolbar/tag)
    :system-icon "number"
    :event? true
    :handler #(insert-text "#" {})})
@@ -106,7 +115,7 @@
 (defn- page-ref-action
   []
   {:id "page-ref"
-   :title "Reference"
+  :title (t :mobile.toolbar/reference)
    ;; TODO: create sf symbol for brackets
    :system-icon "parentheses"
    :event? true
@@ -115,52 +124,71 @@
 (defn- slash-action
   []
   {:id "slash"
-   :title "Slash"
+  :title (t :mobile.toolbar/slash)
    :system-icon "command"
    :event? true
    :handler #(insert-text "/" {})})
 
+(defn- upload-asset-action
+  []
+  {:id "upload-asset"
+   :title (t :editor.slash/upload-asset)
+   :system-icon "paperclip"
+   :event? true
+   :handler #(commands/handle-step [:editor/click-hidden-file-input :id] nil)})
+
 (defn- camera-action
   []
   {:id "camera"
-   :title "Photo"
+   :title (t :mobile.toolbar/photo)
    :system-icon "camera"
    :event? true
    :handler #(when-let [parent-id (state/get-edit-input-id)]
-               (mobile-camera/embed-photo parent-id))})
+               (mobile-camera/embed-photo parent-id
+                                          {:target-block (comment-asset-target-block)}))})
 
 (defn- audio-action
   []
   {:id "audio"
-   :title "Audio"
+  :title (t :mobile.toolbar/audio)
    :system-icon "waveform"
-   :handler #(recorder/record!)})
+   :handler #(let [target-block (comment-asset-target-block)]
+               (state/pub-event! [:mobile/start-audio-record
+                                  (cond-> {:save-to-today? false}
+                                    target-block
+                                    (assoc :target-block target-block))]))})
 
 (defn- keyboard-action
   []
-  {:id "keyboard"
-   :title "Hide"
+   {:id "keyboard"
+   :title (t :mobile.toolbar/hide)
    :system-icon "keyboard.chevron.compact.down"
-   :handler #(p/do!
-              (editor-handler/save-current-block!)
-              (state/clear-edit!)
-              (mobile-init/keyboard-hide))})
+   :handler #(do
+               (editor-handler/save-current-block!)
+               (state/pub-event! [:mobile/clear-edit]))})
 
 (defn- toolbar-actions
   []
-  (let [keyboard (keyboard-action)
-        main-actions [(undo-action)
-                      (todo-action)
-                      (indent-outdent-action false)
-                      (indent-outdent-action true)
-                      (tag-action)
-                      (camera-action)
-                      (page-ref-action)
-                      (audio-action)
-                      (slash-action)
-                      (redo-action)]]
-    {:main main-actions
-     :trailing keyboard}))
+  (if (comment-editor-config)
+    {:main [(page-ref-action)
+            (camera-action)
+            (upload-asset-action)
+            (audio-action)]
+     :trailing (keyboard-action)}
+    (let [keyboard (keyboard-action)
+          main-actions [(undo-action)
+                        (todo-action)
+                        (indent-outdent-action false)
+                        (indent-outdent-action true)
+                        (tag-action)
+                        (camera-action)
+                        (upload-asset-action)
+                        (page-ref-action)
+                        (audio-action)
+                        (slash-action)
+                        (redo-action)]]
+      {:main main-actions
+       :trailing keyboard})))
 
 (defn- action->native
   [{:keys [id title system-icon]}]
@@ -172,7 +200,7 @@
   [main trailing]
   (into {} (map (juxt :id :handler) (concat main (when trailing [trailing])))))
 
-(rum/defc native-toolbar
+(hsx/defc native-toolbar
   [show? {:keys [main trailing]}]
   (let [handlers-ref (hooks/use-ref nil)
         native-actions (mapv action->native main)
@@ -208,10 +236,10 @@
 
     [:<>]))
 
-(rum/defc mobile-bar < rum/reactive
+(hsx/defc mobile-bar
   []
-  (let [editing? (state/sub :editor/editing?)
-        code-block? (state/sub :editor/code-block-context)
+  (let [editing? (state/use-sub :editor/editing?)
+        code-block? (state/use-sub :editor/code-block-context)
         show? (and (not code-block?)
                    editing?)
         actions (toolbar-actions)]

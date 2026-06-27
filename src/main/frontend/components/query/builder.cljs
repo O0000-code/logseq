@@ -4,13 +4,12 @@
             [frontend.components.select :as component-select]
             [frontend.date :as date]
             [frontend.db :as db]
-            [frontend.db-mixins :as db-mixins]
             [frontend.db.async :as db-async]
             [frontend.db.model :as db-model]
             [frontend.db.query-dsl :as query-dsl]
+            [frontend.context.i18n :refer [t]]
             [frontend.handler.editor :as editor-handler]
             [frontend.handler.query.builder :as query-builder]
-            [frontend.mixins :as mixins]
             [frontend.state :as state]
             [frontend.ui :as ui]
             [frontend.util :as util]
@@ -22,7 +21,7 @@
             [logseq.shui.hooks :as hooks]
             [logseq.shui.ui :as shui]
             [promesa.core :as p]
-            [rum.core :as rum]))
+            [io.factorhouse.hsx.core :as hsx]))
 
 (defn- select
   ([items on-chosen]
@@ -42,39 +41,49 @@
   (swap! *tree #(query-builder/append-element % loc x))
   (when toggle? (toggle-fn)))
 
-(rum/defcs search < (rum/local nil ::input-value)
-  (mixins/event-mixin
-   (fn [state]
-     (mixins/on-key-down
-      state
-      {;; enter
-       13 (fn [state e]
-            (let [input-value (get state ::input-value)]
-              (when-not (string/blank? @input-value)
-                (util/stop e)
-                (let [on-submit (first (:rum/args state))]
-                  (on-submit @input-value))
-                (reset! input-value nil))))
-       ;; escape
-       27 (fn [_state _e]
-            (let [[_on-submit on-cancel] (:rum/args state)]
-              (on-cancel)))})))
-  [state _on-submit _on-cancel]
-  (let [*input-value (::input-value state)]
+(defn- filter-label
+  [value]
+  (case value
+    "tags" (t :property.built-in/tags)
+    "page reference" (t :query.builder/filter-page-reference-label)
+    "property" (t :class.built-in/property)
+    "task" (t :class.built-in/task)
+    "priority" (t :property.built-in/priority)
+    "page" (t :query.builder/filter-page-label)
+    "full text search" (t :query.builder/filter-full-text-search-label)
+    "between" (t :view.filter/operator-between)
+    "sample" (t :query.builder/filter-sample-label)
+    "and" (t :query.builder/operator-and-label)
+    "or" (t :view.filter/or)
+    "not" (t :query.builder/operator-not-label)
+    value))
+
+(hsx/defc search
+  [on-submit on-cancel]
+  (let [*input-value (hooks/use-memo #(atom nil) [])]
     [:input#query-builder-search.form-input.block.sm:text-sm.sm:leading-5
      {:auto-focus true
-      :placeholder "Full text search"
-      :aria-label "Full text search"
+      :placeholder (t :search/full-text-placeholder)
+      :aria-label (t :search/full-text-placeholder)
+      :on-key-down (fn [e]
+                     (case (.-keyCode e)
+                       13 (when-not (string/blank? @*input-value)
+                            (util/stop e)
+                            (on-submit @*input-value)
+                            (reset! *input-value nil))
+                       27 (on-cancel)
+                       nil))
       :on-change #(reset! *input-value (util/evalue %))}]))
 
 (defonce *between-dates (atom {}))
-(rum/defcs datepicker < rum/reactive
-  (rum/local nil ::input-value)
-  {:will-unmount (fn [state]
-                   (swap! *between-dates dissoc (first (:rum/args state)))
-                   state)}
-  [state id placeholder {:keys [on-select]}]
-  (let [*input-value (::input-value state)]
+(hsx/defc datepicker
+  [id placeholder {:keys [on-select]}]
+  (let [*input-value (hooks/use-memo #(atom nil) [])
+        [input-value] (hooks/use-atom *input-value)]
+    (hooks/use-effect!
+     (fn []
+       #(swap! *between-dates dissoc id))
+     [id])
     (shui/button
      {:variant :secondary
       :size :sm
@@ -94,23 +103,21 @@
                                     {:id :query-datepicker
                                      :content-props {:class "p-0"}
                                      :align :start}))}
-     (or (first @*input-value) placeholder))))
+     (or (first input-value) placeholder))))
 
-(rum/defcs between <
-  (rum/local nil ::start)
-  (rum/local nil ::end)
-  [state {:keys [tree loc] :as opts}]
+(hsx/defc between
+  [{:keys [tree loc] :as opts}]
   [:div.between-date.p-4 {:on-pointer-down (fn [e] (util/stop-propagation e))}
    [:div.flex.flex-row.items-center.gap-2
-    [:div.font-medium "Between: "]
-    (datepicker :start "Start date"
+    (datepicker :start (t :query.builder/between-start-label)
                 (merge opts {:on-select (fn []
                                           (when-let [^js end-input (js/document.querySelector ".query-builder-datepicker[data-key=end]")]
                                             (when (string/blank? (.-value end-input))
                                               (.focus end-input))))}))
-    (datepicker :end "End date" opts)]
+    "~"
+    (datepicker :end (t :query.builder/between-end-label) opts)]
    [:p.pt-2
-    (ui/button "Submit"
+    (ui/button (t :ui/submit)
                :on-click (fn []
                            (let [{:keys [start end]} @*between-dates]
                              (when (and start end)
@@ -118,9 +125,9 @@
                                  (append-tree! tree opts loc clause)
                                  (reset! *between-dates {}))))))]])
 
-(rum/defc property-select
+(hsx/defc property-select
   [*mode *property *private-property?]
-  (let [[properties set-properties!] (rum/use-state nil)
+  (let [[properties set-properties!] (hooks/use-state nil)
         properties (cond->> properties
                      (not @*private-property?)
                      (remove ldb/built-in?))]
@@ -134,7 +141,7 @@
      [:div.flex.flex-row.justify-between.gap-1.items-center.px-1.pb-1.border-b
       [:label.opacity-50.cursor.select-none.text-sm
        {:for "built-in"}
-       "Show built-in properties"]
+       (t :query.builder/show-built-in-properties)]
       (shui/checkbox
        {:id "built-in"
         :value @*private-property?
@@ -146,27 +153,27 @@
                (reset! *mode "property-value")
                (reset! *property db-ident)))]))
 
-(rum/defc property-value-select-inner
-  < rum/reactive db-mixins/query
+(hsx/defc property-value-select-inner
   [*property *private-property? *tree opts loc values]
-  (let [values' (cons {:label "Select all"
-                       :value "Select all"}
-                      (map #(hash-map :value (str (:value %))
-                                      ;; Preserve original-value as non-string values like boolean do not display in select
-                                      :original-value (:value %))
-                           values))]
-    (select values'
-            (fn [{:keys [value original-value]}]
-              (let [k (if @*private-property? :private-property :property)
-                    x (if (= value "Select all")
-                        [k @*property]
-                        [k @*property original-value])]
-                (reset! *property nil)
-                (append-tree! *tree opts loc x))))))
+  (let [select-all-label (t :view.table/select-all)
+           values' (cons {:label select-all-label
+                          :value select-all-label}
+                         (map #(hash-map :value (str (:value %))
+                                         ;; Preserve original-value as non-string values like boolean do not display in select
+                                         :original-value (:value %))
+                              values))]
+       (select values'
+               (fn [{:keys [value original-value]}]
+                 (let [k (if @*private-property? :private-property :property)
+                       x (if (= value select-all-label)
+                           [k @*property]
+                           [k @*property original-value])]
+                   (reset! *property nil)
+                   (append-tree! *tree opts loc x))))))
 
-(rum/defc property-value-select
+(hsx/defc property-value-select
   [*property *private-property? *tree opts loc]
-  (let [[values set-values!] (rum/use-state nil)]
+  (let [[values set-values!] (hooks/use-state nil)]
     (hooks/use-effect!
      (fn [_property]
        (p/let [result (p/let [result (db-async/<get-property-values @*property)]
@@ -178,9 +185,9 @@
      [@*property])
     (property-value-select-inner *property *private-property? *tree opts loc values)))
 
-(rum/defc tags
+(hsx/defc tags
   [repo *tree opts loc]
-  (let [[values set-values!] (rum/use-state nil)]
+  (let [[values set-values!] (hooks/use-state nil)]
     (hooks/use-effect!
      (fn []
        (let [result (db-model/get-all-readable-classes repo {:except-root-class? true})]
@@ -195,7 +202,7 @@
                 (append-tree! *tree opts loc [:tags (str value)]))
               {:extract-fn :label}))))
 
-(rum/defc page-search
+(hsx/defc page-search
   [on-chosen]
   (let [[result set-result!] (hooks/use-state nil)
         [loading? set-loading!] (hooks/use-state nil)]
@@ -209,11 +216,8 @@
     (select result on-chosen {:loading? loading?})))
 
 (defn- db-based-query-filter-picker
-  [state *tree loc clause opts]
-  (let [*mode (::mode state)
-        *property (::property state)
-        *private-property? (::private-property? state)
-        repo (state/get-current-repo)]
+  [*mode *property *private-property? *tree loc clause opts]
+  (let [repo (state/get-current-repo)]
     [:div
      (case @*mode
        "property"
@@ -281,25 +285,30 @@
 
        nil)]))
 
-(rum/defcs picker < rum/reactive
-  {:will-mount (fn [state]
-                 (state/clear-selection!)
-                 state)}
-  (rum/local nil ::mode)                ; pick mode
-  (rum/local nil ::property)
-  (rum/local false ::private-property?)
-  [state *tree loc clause opts]
-  (let [*mode (::mode state)
+(hsx/defc picker
+  [*tree loc clause opts]
+  (let [*mode (hooks/use-memo #(atom nil) []) ; pick mode
+        *property (hooks/use-memo #(atom nil) [])
+        *private-property? (hooks/use-memo #(atom false) [])
+        [mode] (hooks/use-atom *mode)
         filters query-builder/db-based-block-filters
         filters-and-ops (concat filters query-builder/operators)
-        operator? #(contains? query-builder/operators-set (keyword %))]
+        operator? #(contains? query-builder/operators-set (keyword %))
+        select-items (mapv (fn [value]
+                             {:value value
+                              :label (filter-label value)})
+                           (map name filters-and-ops))]
+    (hooks/use-effect!
+     (fn []
+       (state/clear-selection!))
+     [])
     [:div.query-builder-picker
-     (if @*mode
-       (when-not (operator? @*mode)
-         (db-based-query-filter-picker state *tree loc clause opts))
+     (if mode
+       (when-not (operator? mode)
+         (db-based-query-filter-picker *mode *property *private-property? *tree loc clause opts))
        [:div
         (select
-         (map name filters-and-ops)
+         select-items
          (fn [{:keys [value]}]
            (cond
              (operator? value)
@@ -307,9 +316,13 @@
 
              :else
              (reset! *mode value)))
-         {:input-default-placeholder "Add filter/operator"})])]))
+         {:extract-fn (fn [{:keys [label value]}]
+                        (if label
+                          (str label " " value)
+                          value))
+          :input-default-placeholder (t :query.builder/add-filter-or-operator-placeholder)})])]))
 
-(rum/defc add-filter
+(hsx/defc add-filter
   [*tree loc clause]
   (shui/button
    {:class "jtrigger !px-1 h-6 add-filter text-muted-foreground"
@@ -322,7 +335,7 @@
                                     (picker *tree loc clause {:toggle-fn #(shui/popup-hide! id)}))
                                   {:align :start}))}
    (ui/icon "plus" {:size 14})
-   (when (= [0] loc) "Filter")))
+   (when (= [0] loc) (t :query.builder/filter))))
 
 (declare clauses-group)
 
@@ -340,7 +353,7 @@
       (str clause)
 
       (string? clause)
-      (str "Search: " clause)
+      (t :query.builder/search-label clause)
 
       (= (keyword f) :page-ref)
       (ref/->page-ref (uuid->page-title (second clause)))
@@ -384,9 +397,9 @@
                   (second end))]
         (str (cond
                (= k :block/created-at)
-               "Created"
+               (t :query.builder/created-label)
                (= k :block/updated-at)
-               "Updated"
+               (t :query.builder/updated-label)
                :else
                (or (:block/title (db/entity k)) (name k)))
              " " start
@@ -403,7 +416,7 @@
                         (symbol? (last clause)))
                   (name (last  clause))
                   (second (last clause)))]
-        (str "between: " (uuid->page-title start) " ~ " (uuid->page-title end)))
+        (t :query.builder/between-journal-label (uuid->page-title start) (uuid->page-title end)))
 
       (contains? #{:task :priority} (keyword f))
       (str (name f) ": "
@@ -420,27 +433,27 @@
       :else
       (str (query-builder/->dsl clause)))))
 
-(rum/defc clause-inner
+(hsx/defc clause-inner
   [*tree loc clause & {:keys [operator?]}]
   (let [popup [:div.p-4.flex.flex-col.gap-2
-               [:a {:title "Delete"
+               [:a {:title (t :ui/delete)
                     :on-click (fn []
                                 (swap! *tree (fn [q]
                                                (let [loc' (if operator? (vec (butlast loc)) loc)]
                                                  (query-builder/remove-element q loc'))))
                                 (shui/popup-hide!))}
-                "Delete"]
+                (t :ui/delete)]
 
                (when operator?
-                 [:a {:title "Unwrap this operator"
+                 [:a {:title (t :query.builder/unwrap-operator)
                       :on-click (fn []
                                   (swap! *tree (fn [q]
                                                  (let [loc' (vec (butlast loc))]
                                                    (query-builder/unwrap-operator q loc'))))
                                   (shui/popup-hide!))}
-                  "Unwrap"])
+                  (t :query.builder/unwrap-operator)])
 
-               [:div.font-medium.text-sm "Wrap this filter with: "]
+               [:div.font-medium.text-sm (t :query.builder/wrap-filter-with-label)]
                [:div.flex.flex-row.gap-2
                 (for [op query-builder/operators]
                   (ui/button (string/upper-case (name op))
@@ -454,7 +467,7 @@
 
                (when operator?
                  [:div
-                  [:div.font-medium.text-sm "Replace with: "]
+                  [:div.font-medium.text-sm (t :query.builder/replace-with-label)]
                   [:div.flex.flex-row.gap-2
                    (for [op (remove #{(keyword (string/lower-case clause))} query-builder/operators)]
                      (ui/button (string/upper-case (name op))
@@ -472,7 +485,7 @@
        [:a.flex.query-clause {:on-click #(shui/popup-show! (.-target %) popup {:align :start})}
         (dsl-human-output clause)]])))
 
-(rum/defc clause
+(hsx/defc clause
   [*tree *find loc clauses]
   (when (seq clauses)
     [:div.query-builder-clause
@@ -485,7 +498,7 @@
           [:div.clause-bracket ")"]]
          (clause-inner *tree loc clauses)))]))
 
-(rum/defc clauses-group
+(hsx/defc clauses-group
   [*tree *find loc kind clauses]
   (let [parens? (and (= loc [0]) (or (not= kind :and) (> (count clauses) 1)))]
     [:div.clauses-group
@@ -506,9 +519,9 @@
      (when (not= loc [0])
        (add-filter *tree loc []))]))
 
-(rum/defc clause-tree < rum/reactive
+(hsx/defc clause-tree
   [*tree *find]
-  (let [tree (rum/react *tree)
+  (let [[tree] (hooks/use-atom *tree)
         kind ((set query-builder/operators) (first tree))
         [kind' clauses] (if kind
                           [kind (rest tree)]
@@ -532,55 +545,55 @@
                   (:block/title block)
                   "")))
 
-(rum/defcs builder <
-  (rum/local nil ::find)
-  {:init (fn [state]
-           (let [block (first (:rum/args state))
-                 q-str (get-q block)
-                 query (common-util/safe-read-string
-                        query-dsl/custom-readers
-                        (query-dsl/pre-transform-query q-str))
-                 query' (cond
-                          (contains? #{'and 'or 'not} (first query))
-                          query
+(hsx/defc builder
+  [_block _option]
+  (let [*find (hooks/use-memo #(atom nil) [])
+        *tree (hooks/use-memo
+               #(let [q-str (get-q _block)
+                      query (common-util/safe-read-string
+                             query-dsl/custom-readers
+                             (query-dsl/pre-transform-query q-str))
+                      query' (cond
+                               (contains? #{'and 'or 'not} (first query))
+                               query
 
-                          query
-                          [:and query]
+                               query
+                               [:and query]
 
-                          :else
-                          [:and])
-                 tree (query-builder/from-dsl query')
-                 *tree (atom tree)]
-             (add-watch *tree :updated (fn [_ _ _old _new]
-                                         (when block
-                                           (let [q (if (= [:and] @*tree)
-                                                     ""
-                                                     (let [result (query-builder/->dsl @*tree)]
-                                                       (if (string? result)
-                                                         (util/format "\"%s\"" result)
-                                                         (str result))))
-                                                 repo (state/get-current-repo)
-                                                 block (db/entity [:block/uuid (:block/uuid block)])]
-                                             (editor-handler/save-block! repo (:block/uuid block) q)))))
-             (assoc state ::tree *tree)))
-   :will-mount (fn [state]
-                 (let [q-str (get-q (first (:rum/args state)))
-                       blocks-query? (:blocks? (query-dsl/parse-query q-str (db/get-db)))
-                       find-mode (cond
-                                   blocks-query?
-                                   :block
-                                   (false? blocks-query?)
-                                   :page
-                                   :else
-                                   nil)]
-                   (when find-mode (reset! (::find state) find-mode))
-                   state))}
-  [state _block _option]
-  (let [*find (::find state)
-        *tree (::tree state)]
+                               :else
+                               [:and])]
+                  (atom (query-builder/from-dsl query')))
+               [_block])
+        [tree] (hooks/use-atom *tree)]
+    (hooks/use-effect!
+     (fn []
+       (let [q-str (get-q _block)
+             blocks-query? (:blocks? (query-dsl/parse-query q-str (db/get-db)))
+             find-mode (cond
+                         blocks-query?
+                         :block
+                         (false? blocks-query?)
+                         :page
+                         :else
+                         nil)]
+         (when find-mode (reset! *find find-mode)))
+       (add-watch *tree :updated
+                  (fn [_ _ _old _new]
+                    (when _block
+                      (let [q (if (= [:and] @*tree)
+                                ""
+                                (let [result (query-builder/->dsl @*tree)]
+                                  (if (string? result)
+                                    (util/format "\"%s\"" result)
+                                    (str result))))
+                            repo (state/get-current-repo)
+                            block (db/entity [:block/uuid (:block/uuid _block)])]
+                        (editor-handler/save-block! repo (:block/uuid block) q)))))
+       #(remove-watch *tree :updated))
+     [_block *tree])
     [:div.cp__query-builder
      [:div.cp__query-builder-filter
-      (when (and (seq @*tree)
-                 (not= @*tree [:and]))
+      (when (and (seq tree)
+                 (not= tree [:and]))
         (clause-tree *tree *find))
       (add-filter *tree [0] [])]]))

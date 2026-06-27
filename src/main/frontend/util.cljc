@@ -23,8 +23,7 @@
                      [goog.userAgent]
                      [logseq.common.config :as common-config]
                      [logseq.common.util :as common-util]
-                     [promesa.core :as p]
-                     [rum.core :as rum]))
+                     [promesa.core :as p]))
   #?(:cljs (:import [goog.async Debouncer]))
   (:require
    [clojure.pprint]
@@ -103,9 +102,6 @@
 #?(:cljs (defonce el-visible-in-viewport? utils/elementIsVisibleInViewport))
 #?(:cljs (defonce convert-to-roman utils/convertToRoman))
 #?(:cljs (defonce convert-to-letters utils/convertToLetters))
-#?(:cljs (defonce hsl2hex utils/hsl2hex))
-#?(:cljs (defonce base64string-to-unit8array utils/base64ToUint8Array))
-
 #?(:cljs (def string-join-path common-util/string-join-path))
 
 #?(:cljs
@@ -765,10 +761,7 @@
    (defn react
      [ref]
      (when ref
-       #_{:clj-kondo/ignore [:private-call]}
-       (if rum/*reactions*
-         (rum/react ref)
-         @ref))))
+       @ref)))
 
 #?(:cljs
    (def time-ms common-util/time-ms))
@@ -1085,19 +1078,6 @@
        {:y (- (:height viewport-rect) (:bottom target-rect))
         :x (- (:width viewport-rect) (:right target-rect))})))
 
-(def regex-char-esc-smap
-  (let [esc-chars "{}[]()&^%$#!?*.+|\\"]
-    (zipmap esc-chars
-            (map #(str "\\" %) esc-chars))))
-
-(defn regex-escape
-  "Escape all regex meta chars in text."
-  [text]
-  (string/join (replace regex-char-esc-smap text)))
-
-(comment
-  (re-matches (re-pattern (regex-escape "$u^8(d)+w.*[dw]d?")) "$u^8(d)+w.*[dw]d?"))
-
 #?(:cljs
    (defn meta-key? [e]
      (if mac?
@@ -1183,7 +1163,9 @@
                          (.-nativeEvent e)
 
                          :else e))]
-       (.-isComposing native-event))))
+       (or (.-isComposing native-event)
+           (= (gobj/get native-event "keyCode") 229)
+           (= (gobj/get native-event "key") "Process")))))
 
 #?(:cljs
    (defn open-url
@@ -1315,15 +1297,19 @@
                          (js/console.error "Web clipboard failed" err)))))))))
 
 #?(:cljs
+   (defn copy-image-blob-to-clipboard
+     [blob]
+     (if (= (.-type blob) "image/png")
+       (write-blob-to-clipboard blob)
+       (image-blob->png blob write-blob-to-clipboard))))
+
+#?(:cljs
    (defn copy-image-to-clipboard
      [src]
      (-> (js/fetch src)
          (.then (fn [data]
                   (-> (.blob data)
-                      (.then (fn [blob]
-                               (if (= (.-type blob) "image/png")
-                                 (write-blob-to-clipboard blob)
-                                 (image-blob->png blob write-blob-to-clipboard))))
+                      (.then copy-image-blob-to-clipboard)
                       (.catch js/console.error)))))))
 
 (defn memoize-last
@@ -1343,7 +1329,7 @@
           ret)
         @last-mem))))
 
-;; from rum
+;; requestAnimationFrame fallback
 #?(:cljs
    (def schedule
      (or (and (exists? js/window)
@@ -1381,3 +1367,19 @@
    (defn rtc-test?
      []
      (string/includes? js/window.location.search "?rtc-test=true")))
+
+#?(:cljs
+   (defn sanitize-port-input
+     "Strips all non-digit characters from a port input string."
+     [value]
+     (some-> value
+             trim-safe
+             (string/replace #"\D" ""))))
+
+#?(:cljs
+   (defn normalize-port-input
+     "Normalizes a port input to a valid port number string (1–65535), or nil."
+     [value]
+     (let [digits (sanitize-port-input value)]
+       (when (seq digits)
+         (str (-> digits js/parseInt (max 1) (min 65535)))))))

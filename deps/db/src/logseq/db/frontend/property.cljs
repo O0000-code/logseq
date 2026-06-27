@@ -26,7 +26,7 @@
      * :cardinality - property cardinality. Default to one/single cardinality if not set
      * :hide? - Boolean which hides property when set on a block or exported e.g. slides
      * :public? - Boolean which allows property to be used by user: add and remove property to blocks/pages
-       and queryable via property and has-property rules
+       and queryable via property and has-property rules. When it's not set, it's the same as false
      * :view-context - Keyword to indicate which view contexts a property can be
        seen in when :public? is set. Valid values are :page, :block and :never. Property can
        be viewed in any context if not set
@@ -55,17 +55,15 @@
      :logseq.property/ui-position {:title "Property position"
                                    :schema {:type :keyword
                                             :hide? true}}
-     :logseq.property/classes
-     {:title "Property classes"
-      :schema {:type :entity
-               :cardinality :many
-               :public? false
-               :hide? true}}
-     :logseq.property/value
-     {:title "Property value"
-      :schema {:type :any
-               :public? false
-               :hide? true}}
+     :logseq.property/classes {:title "Property classes"
+                               :schema {:type :entity
+                                        :cardinality :many
+                                        :public? false
+                                        :hide? true}}
+     :logseq.property/value {:title "Property value"
+                             :schema {:type :any
+                                      :public? false
+                                      :hide? true}}
 
      :block/alias          {:title "Alias"
                             :attribute :block/alias
@@ -230,19 +228,18 @@
 
      :logseq.property.pdf/hl-type {:title "Annotation type"
                                    :schema {:type :keyword :hide? true}}
-     :logseq.property.pdf/hl-color
-     {:title "Annotation color"
-      :schema {:type :default :hide? true}
-      :closed-values
-      (mapv (fn [[db-ident value]]
-              {:db-ident db-ident
-               :value value
-               :uuid (common-uuid/gen-uuid :db-ident-block-uuid db-ident)})
-            [[:logseq.property/color.yellow "yellow"]
-             [:logseq.property/color.red "red"]
-             [:logseq.property/color.green "green"]
-             [:logseq.property/color.blue "blue"]
-             [:logseq.property/color.purple "purple"]])}
+     :logseq.property.pdf/hl-color {:title "Annotation color"
+                                    :schema {:type :default :hide? true}
+                                    :closed-values
+                                    (mapv (fn [[db-ident value]]
+                                            {:db-ident db-ident
+                                             :value value
+                                             :uuid (common-uuid/gen-uuid :db-ident-block-uuid db-ident)})
+                                          [[:logseq.property/color.yellow "yellow"]
+                                           [:logseq.property/color.red "red"]
+                                           [:logseq.property/color.green "green"]
+                                           [:logseq.property/color.blue "blue"]
+                                           [:logseq.property/color.purple "purple"]])}
      :logseq.property.pdf/hl-page {:title "Annotation page"
                                    :schema {:type :raw-number :hide? true}}
      :logseq.property.pdf/hl-image {:title "Annotation image"
@@ -262,14 +259,11 @@
                                                   :schema {:type :node
                                                            :cardinality :many
                                                            :hide? true}}
-     ;; TODO: Remove deprecated
-     :logseq.property.tldraw/page {:title "Tldraw Page"
-                                   :schema {:type :map
-                                            :hide? true}}
-     ;; TODO: Remove deprecated
-     :logseq.property.tldraw/shape {:title "Tldraw Shape"
-                                    :schema {:type :map
-                                             :hide? true}}
+     :logseq.property.comments/blocks {:title "Commented blocks"
+                                        :schema {:type :node
+                                                 :cardinality :many
+                                                 :public? false
+                                                 :hide? true}}
 
      ;; Journal props
      :logseq.property.journal/title-format {:title "Title Format"
@@ -277,134 +271,143 @@
                                             {:type :string
                                              :public? false}}
 
-     :logseq.property/choice-checkbox-state
-     {:title "Choice checkbox state"
-      :schema {:type :checkbox
-               :hide? true}
-      :queryable? false}
+     :logseq.property/choice-checkbox-state {:title "Choice checkbox state"
+                                             :schema {:type :checkbox
+                                                      :hide? true}
+                                             :queryable? false}
      ;; tag-scoped choice, a choice can be specified locally for specified tags
-     :logseq.property/choice-classes
-     {:title "Choice classes"
-      :schema {:type :class
-               :cardinality :many
-               :public? false
-               :hide? true
-               :view-context :never}
-      :queryable? false}
+     :logseq.property/choice-classes {:title "Choice classes"
+                                      :schema {:type :class
+                                               :cardinality :many
+                                               :public? false
+                                               :hide? true
+                                               :view-context :never}
+                                      :queryable? false}
      ;; tag can define which global choices are hidden for its objects
-     :logseq.property/choice-exclusions
-     {:title "Choice exclusions"
-      :schema {:type :node
-               :cardinality :many
-               :public? false
-               :hide? true
-               :view-context :never}
-      :queryable? false}
-     :logseq.property/checkbox-display-properties
-     {:title "Properties displayed as checkbox"
-      :schema {:type :property
-               :cardinality :many
-               :hide? true}
-      :queryable? false}
+     :logseq.property/choice-exclusions {:title "Choice exclusions"
+                                         :schema {:type :node
+                                                  :cardinality :many
+                                                  :public? false
+                                                  :hide? true
+                                                  :view-context :never}
+                                         :queryable? false}
+     :logseq.property/checkbox-display-properties {:title "Properties displayed as checkbox"
+                                                   :schema {:type :property
+                                                            :cardinality :many
+                                                            :hide? true}
+                                                   :queryable? false}
      ;; Task props
-     :logseq.property/status
-     {:title "Status"
-      :schema
-      {:type :default
-       :public? true
-       :ui-position :block-left}
-      :closed-values
-      (mapv (fn [[db-ident value icon checkbox-state]]
-              {:db-ident db-ident
-               :value value
-               :uuid (common-uuid/gen-uuid :db-ident-block-uuid db-ident)
-               :icon {:type :tabler-icon :id icon}
-               :properties (when (some? checkbox-state)
-                             {:logseq.property/choice-checkbox-state checkbox-state})})
-            [[:logseq.property/status.backlog "Backlog" "Backlog"]
-             [:logseq.property/status.todo "Todo" "Todo" false]
-             [:logseq.property/status.doing "Doing" "InProgress50"]
-             [:logseq.property/status.in-review "In Review" "InReview"]
-             [:logseq.property/status.done "Done" "Done" true]
-             [:logseq.property/status.canceled "Canceled" "Cancelled"]])
-      :properties {:logseq.property/hide-empty-value true
-                   :logseq.property/default-value :logseq.property/status.todo
-                   :logseq.property/enable-history? true}
-      :queryable? true}
-     :logseq.property/priority
-     {:title "Priority"
-      :schema
-      {:type :default
-       :public? true
-       :ui-position :block-left}
-      :closed-values
-      (mapv (fn [[db-ident value icon]]
-              {:db-ident db-ident
-               :value value
-               :uuid (common-uuid/gen-uuid :db-ident-block-uuid db-ident)
-               :icon {:type :tabler-icon :id icon}})
-            [[:logseq.property/priority.low "Low" "priorityLvlLow"]
-             [:logseq.property/priority.medium "Medium" "priorityLvlMedium"]
-             [:logseq.property/priority.high "High" "priorityLvlHigh"]
-             [:logseq.property/priority.urgent "Urgent" "priorityLvlUrgent"]])
-      :properties {:logseq.property/hide-empty-value true
-                   :logseq.property/enable-history? true}}
-     :logseq.property/deadline
-     {:title "Deadline"
-      :schema {:type :datetime
-               :public? true
-               :ui-position :block-below}
-      :properties {:logseq.property/hide-empty-value true
-                   :logseq.property/description "Use it to finish something at a specific date(time)."}
-      :queryable? true}
-     :logseq.property/scheduled
-     {:title "Scheduled"
-      :schema {:type :datetime
-               :public? true
-               :ui-position :block-below}
-      :properties {:logseq.property/hide-empty-value true
-                   :logseq.property/description "Use it to plan something to start at a specific date(time)."}
-      :queryable? true}
-     :logseq.property.repeat/recur-frequency
-     (let [schema {:type :number
-                   :public? false}]
-       {:title "Repeating recur frequency"
-        :schema schema
-        :properties {:logseq.property/hide-empty-value true
-                     :logseq.property/default-value 1}
-        :queryable? true})
-     :logseq.property.repeat/recur-unit
-     {:title "Repeating recur unit"
-      :schema {:type :default
-               :public? false}
-      :closed-values (mapv (fn [[db-ident value]]
-                             {:db-ident db-ident
-                              :value value
-                              :uuid (common-uuid/gen-uuid :db-ident-block-uuid db-ident)})
-                           [[:logseq.property.repeat/recur-unit.minute "Minute"]
-                            [:logseq.property.repeat/recur-unit.hour "Hour"]
-                            [:logseq.property.repeat/recur-unit.day "Day"]
-                            [:logseq.property.repeat/recur-unit.week "Week"]
-                            [:logseq.property.repeat/recur-unit.month "Month"]
-                            [:logseq.property.repeat/recur-unit.year "Year"]])
-      :properties {:logseq.property/hide-empty-value true
-                   :logseq.property/default-value :logseq.property.repeat/recur-unit.day}
-      :queryable? true}
-     :logseq.property.repeat/repeated?
-     {:title "Node Repeats?"
-      :schema {:type :checkbox
-               :hide? true}
-      :queryable? true}
-     :logseq.property.repeat/temporal-property
-     {:title "Repeating Temporal Property"
-      :schema {:type :property
-               :hide? true}}
-     :logseq.property.repeat/checked-property
-     {:title "Repeating Checked Property"
-      :schema {:type :property
-               :hide? true}}
+     :logseq.property/status {:title "Status"
+                              :schema
+                              {:type :default
+                               :public? true
+                               :ui-position :block-left}
+                              :closed-values
+                              (mapv (fn [[db-ident value icon checkbox-state]]
+                                      {:db-ident db-ident
+                                       :value value
+                                       :uuid (common-uuid/gen-uuid :db-ident-block-uuid db-ident)
+                                       :icon {:type :tabler-icon :id icon}
+                                       :properties (when (some? checkbox-state)
+                                                     {:logseq.property/choice-checkbox-state checkbox-state})})
+                                    [[:logseq.property/status.backlog "Backlog" "Backlog"]
+                                     [:logseq.property/status.todo "Todo" "Todo" false]
+                                     [:logseq.property/status.doing "Doing" "InProgress50"]
+                                     [:logseq.property/status.in-review "In Review" "InReview"]
+                                     [:logseq.property/status.done "Done" "Done" true]
+                                     [:logseq.property/status.canceled "Canceled" "Cancelled"]])
+                              :properties {:logseq.property/hide-empty-value true
+                                           :logseq.property/default-value :logseq.property/status.todo
+                                           :logseq.property/enable-history? true}
+                              :queryable? true}
+     :logseq.property/priority {:title "Priority"
+                                :schema
+                                {:type :default
+                                 :public? true
+                                 :ui-position :block-left}
+                                :closed-values
+                                (mapv (fn [[db-ident value icon]]
+                                        {:db-ident db-ident
+                                         :value value
+                                         :uuid (common-uuid/gen-uuid :db-ident-block-uuid db-ident)
+                                         :icon {:type :tabler-icon :id icon}})
+                                      [[:logseq.property/priority.low "Low" "priorityLvlLow"]
+                                       [:logseq.property/priority.medium "Medium" "priorityLvlMedium"]
+                                       [:logseq.property/priority.high "High" "priorityLvlHigh"]
+                                       [:logseq.property/priority.urgent "Urgent" "priorityLvlUrgent"]])
+                                :properties {:logseq.property/hide-empty-value true
+                                             :logseq.property/enable-history? true}}
+     :logseq.property/deadline {:title "Deadline"
+                                :schema {:type :datetime
+                                         :public? true
+                                         :ui-position :block-below}
+                                :properties {:logseq.property/hide-empty-value true
+                                             :logseq.property/description "Use it to finish something at a specific date(time)."}
+                                :queryable? true}
+     :logseq.property/scheduled {:title "Scheduled"
+                                 :schema {:type :datetime
+                                          :public? true
+                                          :ui-position :block-below}
+                                 :properties {:logseq.property/hide-empty-value true
+                                              :logseq.property/description "Use it to plan something to start at a specific date(time)."}
+                                 :queryable? true}
+     :logseq.property.repeat/recur-frequency (let [schema {:type :number
+                                                           :public? false}]
+                                               {:title "Repeating recur frequency"
+                                                :schema schema
+                                                :properties {:logseq.property/hide-empty-value true
+                                                             :logseq.property/default-value 1}
+                                                :queryable? true})
+     :logseq.property.repeat/recur-unit {:title "Repeating recur unit"
+                                         :schema {:type :default
+                                                  :public? false}
+                                         :closed-values (mapv (fn [[db-ident value]]
+                                                                {:db-ident db-ident
+                                                                 :value value
+                                                                 :uuid (common-uuid/gen-uuid :db-ident-block-uuid db-ident)})
+                                                              [[:logseq.property.repeat/recur-unit.minute "Minute"]
+                                                               [:logseq.property.repeat/recur-unit.hour "Hour"]
+                                                               [:logseq.property.repeat/recur-unit.day "Day"]
+                                                               [:logseq.property.repeat/recur-unit.week "Week"]
+                                                               [:logseq.property.repeat/recur-unit.month "Month"]
+                                                               [:logseq.property.repeat/recur-unit.year "Year"]])
+                                         :properties {:logseq.property/hide-empty-value true
+                                                      :logseq.property/default-value :logseq.property.repeat/recur-unit.day}
+                                         :queryable? true}
+     :logseq.property.repeat/repeated? {:title "Node Repeats?"
+                                        :schema {:type :checkbox
+                                                 :hide? true}
+                                        :queryable? true}
+     :logseq.property.repeat/repeat-type {:title "Repeating type"
+                                          :schema {:type :default
+                                                   :public? false}
+                                          :closed-values (mapv (fn [[db-ident value]]
+                                                                 {:db-ident db-ident
+                                                                  :value value
+                                                                  :uuid (common-uuid/gen-uuid :db-ident-block-uuid db-ident)})
+                                                               [[:logseq.property.repeat/repeat-type.dotted-plus "Advance from completion"]
+                                                                [:logseq.property.repeat/repeat-type.plus "Advance from scheduled"]
+                                                                [:logseq.property.repeat/repeat-type.double-plus "Advance from scheduled, skip to future"]])
+                                          :properties {:logseq.property/hide-empty-value true
+                                                       :logseq.property/default-value :logseq.property.repeat/repeat-type.double-plus}
+                                          :queryable? true}
+     :logseq.property.repeat/temporal-property {:title "Repeating Temporal Property"
+                                                :schema {:type :property
+                                                         :hide? true}}
+     :logseq.property.repeat/checked-property {:title "Repeating Checked Property"
+                                               :schema {:type :property
+                                                        :hide? true}}
 
-     ;; TODO: Add more props :Assignee, :Estimate, :Cycle, :Project
+     :logseq.property/assignee {:title "Assignee"
+                                :schema {:type :node
+                                         :cardinality :many
+                                         :public? true
+                                         :ui-position :block-below
+                                         :classes #{:logseq.class/Page}}
+                                :properties {:logseq.property/hide-empty-value true}
+                                :queryable? true}
+
+     ;; TODO: Add more props :Estimate, :Cycle, :Project
 
      :logseq.property/icon {:title "Icon"
                             :schema {:type :map}}
@@ -426,39 +429,71 @@
                                                 :view-context :page
                                                 :public? true}}
 
-     :logseq.property.view/type
-     {:title "View Type"
-      :schema
-      {:type :default
-       :public? false
-       :hide? true}
-      :closed-values
-      (mapv (fn [[db-ident value icon]]
-              {:db-ident db-ident
-               :value value
-               :uuid (common-uuid/gen-uuid :db-ident-block-uuid db-ident)
-               :icon {:type :tabler-icon :id icon}})
-            [[:logseq.property.view/type.table "Table View" "table"]
-             [:logseq.property.view/type.list "List View" "list"]
-             [:logseq.property.view/type.gallery "Gallery View" "layout-grid"]])
-      :properties {:logseq.property/default-value :logseq.property.view/type.table}
-      :queryable? true}
+     :logseq.property.view/type {:title "View Type"
+                                 :schema
+                                 {:type :default
+                                  :public? false
+                                  :hide? true}
+                                 :closed-values
+                                 (mapv (fn [[db-ident value icon]]
+                                         {:db-ident db-ident
+                                          :value value
+                                          :uuid (common-uuid/gen-uuid :db-ident-block-uuid db-ident)
+                                          :icon {:type :tabler-icon :id icon}})
+                                       [[:logseq.property.view/type.table "Table View" "table"]
+                                        [:logseq.property.view/type.list "List View" "list"]
+                                        [:logseq.property.view/type.gallery "Gallery View" "layout-grid"]])
+                                 :properties {:logseq.property/default-value :logseq.property.view/type.table}
+                                 :queryable? true}
 
-     :logseq.property.view/feature-type
-     {:title "View Feature Type"
-      :schema
-      {:type :keyword
-       :public? false
-       :hide? true}
-      :queryable? false}
+     :logseq.property.view/feature-type {:title "View Feature Type"
+                                         :schema
+                                         {:type :keyword
+                                          :public? false
+                                          :hide? true}
+                                         :queryable? false}
 
-     :logseq.property.view/group-by-property
-     {:title "View group by property"
-      :schema
-      {:type :property
-       :public? false
-       :hide? true}
-      :queryable? true}
+     :logseq.property.view/group-by-property {:title "View group by property"
+                                              :schema
+                                              {:type :property
+                                               :public? false
+                                               :hide? true}
+                                              :queryable? true}
+
+     :logseq.property.view/gallery-asset-property {:title "Gallery asset property"
+                                                   :schema
+                                                   {:type :property
+                                                    :hide? true
+                                                    :public? false}}
+
+     :logseq.property.view/gallery-display-properties {:title "Gallery display properties"
+                                                       :schema
+                                                       {:type :property
+                                                        :cardinality :many
+                                                        :hide? true
+                                                        :public? false}}
+
+     :logseq.property.view/gallery-card-size {:title "Gallery card size"
+                                              :schema
+                                              {:type :keyword
+                                               :hide? true
+                                               :public? false}
+                                              :properties {:logseq.property/scalar-default-value :default}
+                                              :rtc property-ignore-rtc}
+
+     :logseq.property.view/gallery-card-width {:title "Gallery card width"
+                                               :schema
+                                               {:type :raw-number
+                                                :hide? true
+                                                :public? false}
+                                               :rtc property-ignore-rtc}
+
+     :logseq.property.view/gallery-card-height {:title "Gallery card height"
+                                                :schema
+                                                {:type :raw-number
+                                                 :hide? true
+                                                 :public? false}
+                                                :rtc property-ignore-rtc}
 
      :logseq.property.view/sort-groups-by-property {:title "View sort groups by"
                                                     :schema
@@ -647,6 +682,12 @@
                                        :schema {:type :node
                                                 :public? false
                                                 :hide? true}}
+     :logseq.property.agent/session-id {:title "Agent Session ID"
+                                        :schema {:type :string
+                                                 :public? true
+                                                 :hide? true}
+                                        :properties
+                                        {:logseq.property/description "Stores the AgentBridge session ID for a routed task."}}
      :logseq.property/used-template {:title "Used template"
                                      :schema {:type :node
                                               :public? false
@@ -660,13 +701,12 @@
      :logseq.property.sync/large-title-object {:title "Reference to large block title stored in remote object storage"
                                                :schema {:type :map
                                                         :public? false
-                                                        :hide? true}}
-     :logseq.property.embedding/hnsw-label-updated-at {:title "HNSW label updated-at"
-                                                       :schema {:type :datetime
-                                                                :public? false
-                                                                :hide? true}
-                                                       :queryable? false
-                                                       :rtc property-ignore-rtc})))
+                                                        :hide? true}})))
+
+(def public-built-in-properties
+  (->> built-in-properties
+       (keep (fn [[k v]] (when (get-in v [:schema :public?]) k)))
+       set))
 
 (def db-attribute-properties
   "Internal properties that are also db schema attributes"
@@ -718,9 +758,9 @@
     "logseq.property.linked-references" "logseq.property.asset" "logseq.property.table" "logseq.property.node"
     "logseq.property.code" "logseq.property.repeat"
     "logseq.property.journal" "logseq.property.class" "logseq.property.view"
-    "logseq.property.user" "logseq.property.history" "logseq.property.embedding"
+    "logseq.property.user" "logseq.property.history"
     "logseq.property.reaction" "logseq.property.sync" "logseq.property.publish"
-    "logseq.property.recycle"})
+    "logseq.property.recycle" "logseq.property.comments" "logseq.property.agent"})
 
 (defn logseq-property?
   "Determines if keyword is a logseq property"
@@ -773,6 +813,11 @@
   {:pre [(string? s)]}
   ;; Disallow tags or page refs as they would create unreferenceable page names
   (not (re-find #"^(#|\[\[)" s)))
+
+(defn built-in-closed-values
+  "Gets :closed-values for given built-in property ident"
+  [ident]
+  (get-in built-in-properties [ident :closed-values]))
 
 (defn get-closed-property-values
   [db property-id]
@@ -928,3 +973,52 @@
   (when db
     (let [block (or (d/entity db (:db/id block)) block)]
       (lookup block db-ident))))
+
+(defn built-in-ident->i18n-key
+  "Derives an i18n key from a built-in db-ident.
+   Returns nil for non-built-in idents.
+   Examples:
+     :block/alias -> :property.built-in/alias
+     :logseq.property/status -> :property.built-in/status
+     :logseq.property.code/lang -> :property.built-in/code-lang
+     :logseq.class/Task -> :class.built-in/task
+     :logseq.property/status.backlog -> :property.status/backlog"
+  [db-ident]
+  (let [ns-str (namespace db-ident)
+        n (name db-ident)]
+    (cond
+      (= ns-str "logseq.class")
+      (keyword "class.built-in" (string/lower-case n))
+
+      (or (= ns-str "logseq.property")
+          (string/starts-with? ns-str "logseq.property."))
+      (let [sub-ns (when (not= ns-str "logseq.property")
+                     (subs ns-str (count "logseq.property.")))
+            dot-idx (string/index-of n ".")
+            clean-n (string/replace n #"\?$" "")]
+        (if dot-idx
+          ;; Closed value: logseq.property/status.backlog -> :property.status/backlog
+          (let [prop-part (subs clean-n 0 dot-idx)
+                choice-part (subs clean-n (inc dot-idx))
+                subdomain (if sub-ns (str sub-ns "-" prop-part) prop-part)]
+            (keyword (str "property." subdomain) choice-part))
+          ;; Property definition
+          (if sub-ns
+            (keyword "property.built-in" (str sub-ns "-" clean-n))
+            (keyword "property.built-in" clean-n))))
+
+      (= ns-str "block")
+      (keyword "property.built-in" (string/replace n #"\?$" ""))
+
+      :else nil)))
+
+(defn built-in-display-title
+  "Returns the display title for a built-in entity (property or class).
+   `translate-fn` takes an i18n keyword and returns the translated string.
+   Falls back to (:block/title entity) when no translation is available."
+  [entity translate-fn]
+  (or (when-let [i18n-key (some-> (:db/ident entity) built-in-ident->i18n-key)]
+        (let [s (translate-fn i18n-key)]
+          (when-not (string/starts-with? (str s) "{Missing")
+            s)))
+      (:block/title entity)))

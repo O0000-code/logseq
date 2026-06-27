@@ -3,8 +3,8 @@
   (:require [frontend.components.views :as views]
             [frontend.db :as db]
             [frontend.state]
-            [logseq.shui.hooks :as hooks]
-            [rum.core :as rum]))
+            [io.factorhouse.hsx.core :as hsx]
+            [logseq.shui.hooks :as hooks]))
 
 (defn- result->entities
   [result]
@@ -21,9 +21,9 @@
                           (:db/id b))))
          (remove :logseq.property/view-for))))
 
-(rum/defc query-result
+(hsx/defc query-result
   [config view-entity result*]
-  (let [[data set-data!] (rum/use-state (init-result result* view-entity))
+  (let [[data set-data!] (hooks/use-state (init-result result* view-entity))
         ids (mapv :db/id data)]
     (hooks/use-effect!
      (fn []
@@ -32,7 +32,7 @@
     [:div.query-result.w-full
      (views/view
       {:config (assoc {:custom-query? true} :sidebar? (:sidebar? config))
-       :title-key :views.table/live-query-title
+       :title-key :view.table/live-query-title
        :view-entity view-entity
        :view-feature-type :query-result
        :data ids

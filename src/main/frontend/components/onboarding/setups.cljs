@@ -1,8 +1,8 @@
 (ns frontend.components.onboarding.setups
   (:require [frontend.context.i18n :refer [t]]
-            [rum.core :as rum]))
+            [io.factorhouse.hsx.core :as hsx]))
 
-(rum/defc setups-container
+(hsx/defc setups-container
   [flag content]
 
   [:div.cp__onboarding-setups.flex.flex-1
@@ -11,12 +11,12 @@
 
       [:h1.text-xl
        (if picker?
-         [:span (t :on-boarding/main-title)]
-         [:span (t :on-boarding/importing-main-title)])]
+         [:span (t :onboarding.setup/title)]
+         [:span (t :onboarding.import-option/title)])]
 
       [:h2
        (if picker?
-         (t :on-boarding/main-desc)
-         (t :on-boarding/importing-main-desc))]
+         (t :onboarding.setup/desc)
+         (t :onboarding.import-option/desc))]
 
       content])])

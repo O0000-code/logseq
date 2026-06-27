@@ -2,6 +2,7 @@
   "Library page"
   (:require [clojure.string :as string]
             [frontend.components.select :as components-select]
+            [frontend.context.i18n :refer [t]]
             [frontend.db :as db]
             [frontend.handler.editor :as editor-handler]
             [frontend.search :as search]
@@ -10,9 +11,9 @@
             [logseq.shui.hooks :as hooks]
             [logseq.shui.ui :as shui]
             [promesa.core :as p]
-            [rum.core :as rum]))
+            [io.factorhouse.hsx.core :as hsx]))
 
-(rum/defc select-pages
+(hsx/defc select-pages
   [library-page]
   (let [[result set-result!] (hooks/use-state nil)
         [input set-input!] (hooks/use-state "")
@@ -47,13 +48,13 @@
                                      {:outliner-op :save-block})
                        (set-selected-choices! (disj selected-choices chosen)))))
       :multiple-choices? true
-      :input-default-placeholder "Add pages"
+      :input-default-placeholder (t :library/add-pages)
       :show-new-when-not-exact-match? false
       :on-input set-input!
       :input-opts {:class "!p-1 !text-sm"}
       :clear-input-on-chosen? false})))
 
-(rum/defc add-pages
+(hsx/defc add-pages
   [library-page]
   [:div.ls-add-pages.px-1.mt-4
    (shui/button
@@ -68,4 +69,4 @@
                      (select-pages library-page)])
                   {:align :start}))}
     (ui/icon "plus" {:size 16})
-    "Add existing pages to Library")])
+    (t :library/add-existing-pages))])

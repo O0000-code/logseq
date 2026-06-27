@@ -1,19 +1,17 @@
 (ns frontend.components.shortcut
   (:require [cljs-bean.core :as bean]
             [clojure.string :as string]
-            [frontend.context.i18n :refer [t]]
+            [frontend.context.i18n :as i18n :refer [t]]
             [frontend.modules.shortcut.config :as shortcut-config]
             [frontend.modules.shortcut.core :as shortcut]
             [frontend.modules.shortcut.data-helper :as dh]
-            [frontend.modules.shortcut.utils :as shortcut-utils]
-            [frontend.rum :as r]
-            [frontend.search :as search]
+            [frontend.modules.shortcut.utils :as shortcut-utils]            [frontend.search :as search]
             [frontend.ui :as ui]
             [frontend.util :as util]
             [goog.events :as events]
             [logseq.shui.hooks :as hooks]
             [logseq.shui.ui :as shui]
-            [rum.core :as rum])
+            [io.factorhouse.hsx.core :as hsx])
   (:import [goog.events KeyHandler]))
 
 (defonce categories
@@ -46,7 +44,7 @@
   [*ref-el key-handler-fn timer-refs]
   (hooks/use-effect!
    (fn []
-     (let [^js el (rum/deref *ref-el)
+     (let [^js el (hooks/deref *ref-el)
            key-handler (KeyHandler. el)
            ;; Bubble-phase blocker: registered AFTER KeyHandler (which uses
            ;; goog.events.listen in bubble phase). On the same element,
@@ -70,7 +68,7 @@
        (let [focus-timer (js/setTimeout #(.focus el) 128)]
          #(do (js/clearTimeout focus-timer)
               (doseq [*t timer-refs]
-                (when-let [timer (rum/deref *t)]
+                (when-let [timer (hooks/deref *t)]
                   (js/clearTimeout timer)))
               (.removeEventListener el "keydown" bubble-blocker false)
               (.removeEventListener el "keypress" bubble-blocker false)
@@ -121,8 +119,8 @@
       (do (.stopPropagation e)
           (close-fn))
 
-      (and is-backspace? (not (rum/deref *committed-ref)))
-      (if-let [remaining (keyboard-filter-remove-last-keystroke (rum/deref *keystroke-ref))]
+      (and is-backspace? (not (hooks/deref *committed-ref)))
+      (if-let [remaining (keyboard-filter-remove-last-keystroke (hooks/deref *keystroke-ref))]
         (do (set-keystroke! remaining)
             (start-commit-timer! remaining))
         (clear!))
@@ -133,15 +131,15 @@
       :else
       (when-let [kn (some-> (shortcut/keyname e) util/trim-safe)]
         (if has-modifier?
-          (do (when-let [timer (rum/deref *commit-timer)]
+          (do (when-let [timer (hooks/deref *commit-timer)]
                 (js/clearTimeout timer))
               (commit! kn))
-          (if (rum/deref *committed-ref)
-            (do (rum/set-ref! *committed-ref false)
+          (if (hooks/deref *committed-ref)
+            (do (hooks/set-ref! *committed-ref false)
                 (set-accumulating! true)
                 (set-keystroke! kn)
                 (start-commit-timer! kn))
-            (let [current-keystroke (rum/deref *keystroke-ref)]
+            (let [current-keystroke (hooks/deref *keystroke-ref)]
               (when-not (keyboard-filter-at-limit? current-keystroke)
                 (let [new-keystroke (util/trim-safe (str current-keystroke kn))]
                   (set-accumulating! true)
@@ -164,7 +162,7 @@
           {:on-click (fn [^js e]
                        (.stopPropagation e)
                        (clear!))
-           :aria-label "Remove filter"}
+           :aria-label (t :keymap/remove-filter)}
           (ui/icon "x" {:size 12})]])
       (when-not has-keystroke?
         [:span.shortcut-input-placeholder (t :keymap/press-keys-to-filter)])]
@@ -183,38 +181,38 @@
        [:span.shortcut-toolbar-hint
         (t :keymap/hint-close) (shui/shortcut "escape" {:style :compact})]]]]))
 
-(rum/defc keyboard-filter-record-inner
+(hsx/defc keyboard-filter-record-inner
   [initial-keystroke parent-set-keystroke! close-fn]
-  (let [*ref-el (rum/use-ref nil)
-        [keystroke set-local-keystroke!] (rum/use-state initial-keystroke)
+  (let [*ref-el (hooks/use-ref nil)
+        [keystroke set-local-keystroke!] (hooks/use-state initial-keystroke)
         set-keystroke! (fn [ks]
                          (set-local-keystroke! ks)
                          (parent-set-keystroke! ks))
-        [accumulating? set-accumulating!] (rum/use-state false)
-        *commit-timer (rum/use-ref nil)
-        *committed-ref (rum/use-ref (not (string/blank? keystroke)))
-        *keystroke-ref (rum/use-ref keystroke)
+        [accumulating? set-accumulating!] (hooks/use-state false)
+        *commit-timer (hooks/use-ref nil)
+        *committed-ref (hooks/use-ref (not (string/blank? keystroke)))
+        *keystroke-ref (hooks/use-ref keystroke)
         commit!
         (fn [ks]
           (set-keystroke! ks)
           (set-accumulating! false)
-          (rum/set-ref! *committed-ref true))
+          (hooks/set-ref! *committed-ref true))
 
         clear!
         (fn []
-          (when-let [timer (rum/deref *commit-timer)]
+          (when-let [timer (hooks/deref *commit-timer)]
             (js/clearTimeout timer))
           (set-keystroke! "")
           (set-accumulating! false)
-          (rum/set-ref! *committed-ref false))
+          (hooks/set-ref! *committed-ref false))
 
         start-commit-timer!
         (fn [ks]
-          (when-let [timer (rum/deref *commit-timer)]
+          (when-let [timer (hooks/deref *commit-timer)]
             (js/clearTimeout timer))
           (let [timer (js/setTimeout #(commit! ks) 400)]
-            (rum/set-ref! *commit-timer timer)))]
-    (rum/set-ref! *keystroke-ref keystroke)
+            (hooks/set-ref! *commit-timer timer)))]
+    (hooks/set-ref! *keystroke-ref keystroke)
     (use-scoped-key-handler
      *ref-el
      #(handle-keyboard-filter-record-key! %
@@ -279,11 +277,11 @@
                         (= kc 27)
                         (do (util/stop e)
                             (if (string/blank? q)
-                              (some-> (rum/deref *search-ref) (.blur))
+                              (some-> (hooks/deref *search-ref) (.blur))
                               (set-q! "")))
 
                         (= kc 40)
-                        (when-let [row (some-> (rum/deref *search-ref)
+                        (when-let [row (some-> (hooks/deref *search-ref)
                                                (.closest ".cp__shortcut-page-x")
                                                (.querySelector "ul li.shortcut-row:not([aria-disabled])"))]
                           (.preventDefault e)
@@ -297,8 +295,8 @@
      [:button.x
       {:on-click (fn []
                    (set-q! "")
-                   (js/setTimeout #(some-> (rum/deref *search-ref) (.focus)) 50))
-       :aria-label "Clear search"}
+                   (js/setTimeout #(some-> (hooks/deref *search-ref) (.focus)) 50))
+       :aria-label (t :keymap/clear-search)}
       (ui/icon "x" {:size 12})])])
 
 (defn- open-keystroke-filter!
@@ -340,7 +338,7 @@
         {:on-click (fn [^js e]
                      (.stopPropagation e)
                      (set-keystroke! ""))
-         :aria-label "Clear keystroke filter"}
+         :aria-label (t :keymap/clear-keystroke-filter)}
         (ui/icon "x" {:size 12})]])))
 
 (defn- pane-filter-pills
@@ -364,15 +362,15 @@
      [:button.flex.items-center.icon-link
       {:tab-index -1
        :on-click toggle-categories-fn
-       :aria-label "Toggle categories pane"}
+       :aria-label (t :keymap/toggle-categories-pane)}
       (ui/icon "fold")]
      [:button.flex.items-center.icon-link
       {:tab-index -1
        :on-click refresh-shortcuts-list!
-       :aria-label "Refresh all"}
+       :aria-label (t :keymap/refresh-all)}
       (ui/icon "refresh")]]))
 
-(rum/defc pane-controls
+(hsx/defc pane-controls
   [q set-q! filter-key set-filter-key! keystroke set-keystroke! toggle-categories-fn pill-counts *search-ref]
   [:div.cp__shortcut-page-x-pane-controls
    [:div.shortcut-toolbar-row
@@ -382,7 +380,7 @@
     (pane-filter-pills filter-key set-filter-key! pill-counts)
     (pane-secondary-actions q toggle-categories-fn)]])
 
-(rum/defc shortcut-desc-label
+(hsx/defc shortcut-desc-label
   [id binding-map]
   (when-let [id' (and id binding-map (str id))]
     (let [plugin? (string/starts-with? id' ":plugin.")
@@ -508,6 +506,11 @@
          ^{:key (str "stroke-" i)}
          (shui/shortcut stroke {:style :compact}))])))
 
+(defn- feedback-inline-label
+  [template replacements]
+  (into [:span]
+        (i18n/interpolate-rich-text template replacements)))
+
 (defn- prefix-conflict-label
   "Render content for a prefix-conflict amber banner with inline keycaps.
    n=1: keycap + quoted name inline. n=2-3: vertical list with keycap + name.
@@ -517,7 +520,7 @@
     (cond
       (= n 1)
       (let [{:keys [binding name]} (first details)]
-        [:<>
+        [:span.shortcut-feedback-inline
          [:span (t :keymap/deactivates-chord)]
          (chord-keycap binding)
          [:span.shortcut-feedback-name (str \u201c name \u201d)]])
@@ -628,7 +631,7 @@
            action-id]}
    ^js e]
   (.preventDefault e)
-  (let [state (rum/deref *rec-state-ref)
+  (let [state (hooks/deref *rec-state-ref)
         key-code (.-keyCode e)
         is-esc? (= key-code 27)
         is-backspace? (= key-code 8)
@@ -660,8 +663,8 @@
       ;; Backspace in idle/accepted: remove last committed binding
       (and is-backspace?
            (#{:idle :accepted :removed :reset :dismissing} state)
-           (string/blank? (rum/deref *keystroke-ref)))
-      (let [cur-binding (rum/deref *current-binding-ref)]
+           (string/blank? (hooks/deref *keystroke-ref)))
+      (let [cur-binding (hooks/deref *current-binding-ref)]
         (when (seq (filter string? cur-binding))
           (let [new-binding (vec (butlast cur-binding))
                 undo-entries [{:action-id action-id :previous-binding cur-binding}]]
@@ -687,31 +690,31 @@
       ;; Recording + key => accumulate (max 5 keys)
       (= state :recording)
       (when-let [kn (shortcut/keyname e)]
-        (let [cur (rum/deref *keystroke-ref)
+        (let [cur (hooks/deref *keystroke-ref)
               parts (string/split (string/trim cur) #" ")
               at-limit? (and (seq (first parts)) (>= (count parts) max-key-sequence-length))]
           (when-not at-limit?
             (set-key-conflicts! nil)
             (set-keystroke! #(util/trim-safe (str % kn)))))))))
 
-(rum/defc ^:large-vars/cleanup-todo customize-shortcut-dialog-inner
+(hsx/defc ^:large-vars/cleanup-todo customize-shortcut-dialog-inner
   "user-binding: empty vector is for the unset state, nil is for the default binding"
   [k action-name binding user-binding {:keys [saved-cb close-fn]}]
-  (let [*ref-el (rum/use-ref nil)
-        [keystroke set-keystroke!] (rum/use-state "")
-        [current-binding set-current-binding!] (rum/use-state (if (nil? user-binding) binding user-binding))
-        [key-conflicts set-key-conflicts!] (rum/use-state nil)
-        [rec-state set-rec-state!] (rum/use-state :idle)
-        [accepted-info set-accepted-info!] (rum/use-state nil)
-        [undo-snapshot set-undo-snapshot!] (rum/use-state nil)
-        *auto-accept-timer (rum/use-ref nil)
-        *fade-timer (rum/use-ref nil)
-        *prev-rec-state (rum/use-ref nil)
+  (let [*ref-el (hooks/use-ref nil)
+        [keystroke set-keystroke!] (hooks/use-state "")
+        [current-binding set-current-binding!] (hooks/use-state (if (nil? user-binding) binding user-binding))
+        [key-conflicts set-key-conflicts!] (hooks/use-state nil)
+        [rec-state set-rec-state!] (hooks/use-state :idle)
+        [accepted-info set-accepted-info!] (hooks/use-state nil)
+        [undo-snapshot set-undo-snapshot!] (hooks/use-state nil)
+        *auto-accept-timer (hooks/use-ref nil)
+        *fade-timer (hooks/use-ref nil)
+        *prev-rec-state (hooks/use-ref nil)
         ;; Refs to avoid stale closures in mount-only key handler effect
-        *rec-state-ref (rum/use-ref rec-state)
-        *keystroke-ref (rum/use-ref keystroke)
-        *current-binding-ref (rum/use-ref current-binding)
-        *key-conflicts-ref (rum/use-ref key-conflicts)
+        *rec-state-ref (hooks/use-ref rec-state)
+        *keystroke-ref (hooks/use-ref keystroke)
+        *current-binding-ref (hooks/use-ref current-binding)
+        *key-conflicts-ref (hooks/use-ref key-conflicts)
 
         handler-id (hooks/use-memo #(dh/get-group k) [])
         ;; For rendering, :dismissing looks like :idle — only the banner needs the real state
@@ -760,11 +763,11 @@
 
         override-fn!
         (fn []
-          (let [conflicts (rum/deref *key-conflicts-ref)
+          (let [conflicts (hooks/deref *key-conflicts-ref)
                 prefix-map (:prefix conflicts)
                 exact-map (:exact conflicts)
-                ks (rum/deref *keystroke-ref)
-                cur-binding (rum/deref *current-binding-ref)]
+                ks (hooks/deref *keystroke-ref)
+                cur-binding (hooks/deref *current-binding-ref)]
             (when-let [{:keys [new-binding accepted-key undo-entries conflict-updates conflict-names]}
                        (compute-override-plan k exact-map ks cur-binding)]
               ;; Batch-persist: conflict stripping + own binding in one atomic write
@@ -790,10 +793,10 @@
               (set-rec-state! :accepted))))]
 
     ;; Keep refs in sync for stale-closure safety
-    (rum/set-ref! *rec-state-ref rec-state)
-    (rum/set-ref! *keystroke-ref keystroke)
-    (rum/set-ref! *current-binding-ref current-binding)
-    (rum/set-ref! *key-conflicts-ref key-conflicts)
+    (hooks/set-ref! *rec-state-ref rec-state)
+    (hooks/set-ref! *keystroke-ref keystroke)
+    (hooks/set-ref! *current-binding-ref current-binding)
+    (hooks/set-ref! *key-conflicts-ref key-conflicts)
 
     ;; Auto-evaluate keystroke after 400ms debounce
     (hooks/use-effect!
@@ -801,7 +804,7 @@
        (when-not (string/blank? keystroke)
          (let [timer (js/setTimeout
                       (fn []
-                        (let [cur-binding (rum/deref *current-binding-ref)]
+                        (let [cur-binding (hooks/deref *current-binding-ref)]
                           ;; Check same-action conflicts first
                           (if-let [_current-conflicts
                                    (seq (dh/parse-conflicts-from-binding cur-binding keystroke))]
@@ -852,8 +855,8 @@
                                                            :prefix-details details})
                                       (set-rec-state! :accepted)))))))))
                       400)]
-           (rum/set-ref! *auto-accept-timer timer)))
-       #(when-let [timer (rum/deref *auto-accept-timer)]
+           (hooks/set-ref! *auto-accept-timer timer)))
+       #(when-let [timer (hooks/deref *auto-accept-timer)]
           (js/clearTimeout timer)))
      [keystroke])
 
@@ -861,7 +864,7 @@
     (hooks/use-effect!
      (fn []
        (when (#{:conflict-cross :conflict-same :esc-hint :accepted :removed :reset} rec-state)
-         (rum/set-ref! *prev-rec-state rec-state))
+         (hooks/set-ref! *prev-rec-state rec-state))
        js/undefined)
      [rec-state])
 
@@ -882,8 +885,8 @@
                timer (js/setTimeout
                       #(set-rec-state! :dismissing)
                       ms)]
-           (rum/set-ref! *fade-timer timer)))
-       #(when-let [timer (rum/deref *fade-timer)]
+           (hooks/set-ref! *fade-timer timer)))
+       #(when-let [timer (hooks/deref *fade-timer)]
           (js/clearTimeout timer)))
      [rec-state])
 
@@ -912,7 +915,7 @@
     ;; to document.body and making the popover deaf to subsequent keypresses.
     (hooks/use-effect!
      (fn []
-       (when-let [el (rum/deref *ref-el)]
+       (when-let [el (hooks/deref *ref-el)]
          (when-not (.contains el (.-activeElement js/document))
            (js/requestAnimationFrame #(.focus el)))))
      [rec-state])
@@ -934,10 +937,10 @@
       (for [[idx x] (map-indexed vector current-binding)
             :when (string? x)]
         [:div.shortcut-input-binding {:key x}
-         (shui/shortcut x {:chord-separator (t :keymap/chord-separator)})
+         (shui/shortcut x {:chord-separator "->"})
          (when (#{:idle :accepted :esc-hint :removed :reset} render-state)
            [:button.shortcut-binding-remove
-            {:aria-label "Remove binding"
+            {:aria-label (t :keymap/remove-binding)
              :on-click (fn [^js e]
                          (.stopPropagation e)
                          (let [new-binding (vec (concat (subvec current-binding 0 idx)
@@ -952,10 +955,10 @@
       (when (and (#{:recording :conflict-cross :conflict-same} render-state)
                  (not (string/blank? keystroke)))
         [:div.shortcut-input-binding.shortcut-input-binding--pending
-         (shui/shortcut keystroke)
+         (shui/shortcut keystroke {:chord-separator "->"})
          (when (#{:conflict-cross :conflict-same} render-state)
            [:button.shortcut-binding-remove
-            {:aria-label "Remove binding"
+            {:aria-label (t :keymap/remove-binding)
              :on-click (fn [^js e]
                          (.stopPropagation e)
                          (cancel-fn!))}
@@ -980,8 +983,9 @@
         (case rec-state
           :conflict-cross
           [:div.shortcut-feedback.shortcut-feedback--error
-           [:span (t :keymap/used-by)
-            [:span.shortcut-feedback-name (conflict-action-names (:exact key-conflicts))]]
+           (feedback-inline-label (t :keymap/used-by-action)
+                                  [[:span.shortcut-feedback-name
+                                    (conflict-action-names (:exact key-conflicts))]])
            (ui/tooltip
             (shui/button {:variant :destructive
                           :size :xs
@@ -997,11 +1001,14 @@
           (cond
             (:cross-context? accepted-info)
             [:div.shortcut-feedback.shortcut-feedback--warning
-             [:span (t :keymap/also-used-for)
-              [:span.shortcut-feedback-name
-               (:cross-action-name accepted-info)]
-              (when-let [ctx (:cross-context-label accepted-info)]
-                (str (t :keymap/in-context) ctx))]]
+             (if-let [ctx (:cross-context-label accepted-info)]
+               (feedback-inline-label (t :keymap/also-used-for-action-in-context)
+                                      [[:span.shortcut-feedback-name
+                                        (:cross-action-name accepted-info)]
+                                       [:span ctx]])
+               (feedback-inline-label (t :keymap/also-used-for-action)
+                                      [[:span.shortcut-feedback-name
+                                        (:cross-action-name accepted-info)]]))]
 
             (:prefix-conflicts? accepted-info)
             [:div.shortcut-feedback.shortcut-feedback--warning
@@ -1009,20 +1016,23 @@
              undo-link]
 
             (:from accepted-info)
-            (if-let [prefix-details' (:prefix-details accepted-info)]
+            (let [reassigned-label
+                  (into [:span]
+                        (i18n/interpolate-rich-text
+                         (t :keymap/reassigned-from)
+                         [[:span.shortcut-feedback-name (:from accepted-info)]]))]
+              (if-let [prefix-details' (:prefix-details accepted-info)]
               ;; Post-reassign with prefix info (mixed case)
               [:<>
                [:div.shortcut-feedback.shortcut-feedback--success
-                [:span (t :keymap/reassigned-from)
-                 [:span.shortcut-feedback-name (:from accepted-info)]]
+                reassigned-label
                 undo-link]
                [:div.shortcut-feedback.shortcut-feedback--warning
                 (prefix-conflict-label prefix-details')]]
               ;; Pure reassign, no prefix
               [:div.shortcut-feedback.shortcut-feedback--success
-               [:span (t :keymap/reassigned-from)
-                [:span.shortcut-feedback-name (:from accepted-info)]]
-               undo-link])
+               reassigned-label
+               undo-link]))
 
             :else
             [:div.shortcut-feedback.shortcut-feedback--success
@@ -1043,7 +1053,7 @@
            [:span (t :keymap/esc-is-reserved)]]
 
           :dismissing
-          (let [prev (rum/deref *prev-rec-state)
+          (let [prev (hooks/deref *prev-rec-state)
                 variant (case prev
                           (:conflict-cross :conflict-same) "shortcut-feedback--error"
                           :accepted (cond
@@ -1155,15 +1165,15 @@
   (->> categories
        (map #(vector % (into (sorted-map) (dh/binding-by-category %))))))
 
-(rum/defc ^:large-vars/cleanup-todo shortcut-keymap-x
+(hsx/defc ^:large-vars/cleanup-todo shortcut-keymap-x
   []
-  (let [[active-id] (r/use-atom *active-shortcut-id)
-        _ (r/use-atom shortcut-config/*category)
-        _ (r/use-atom *refresh-sentry)
-        [ready?, set-ready!] (rum/use-state false)
-        [filter-key, set-filter-key!] (rum/use-state nil)
-        [keystroke, set-keystroke!] (rum/use-state "")
-        [q set-q!] (rum/use-state nil)
+  (let [[active-id] (hooks/use-atom *active-shortcut-id)
+        _ (hooks/use-atom shortcut-config/*category)
+        _ (hooks/use-atom *refresh-sentry)
+        [ready?, set-ready!] (hooks/use-state false)
+        [filter-key, set-filter-key!] (hooks/use-state nil)
+        [keystroke, set-keystroke!] (hooks/use-state "")
+        [q set-q!] (hooks/use-state nil)
 
         categories-list-map (build-categories-map)
         all-categories (into #{} (map first categories-list-map))
@@ -1171,7 +1181,7 @@
         in-query? (not (string/blank? (util/trim-safe q)))
         in-keystroke? (not (string/blank? keystroke))
 
-        [folded-categories set-folded-categories!] (rum/use-state #{})
+        [folded-categories set-folded-categories!] (hooks/use-state #{})
 
         matched-list-map
         (when (and in-query? (not in-keystroke?))
@@ -1219,13 +1229,13 @@
          (shui/popup-hide-all!)))
      [])
 
-    (let [*container-ref (rum/use-ref nil)
-          *search-ref (rum/use-ref nil)
-          *rescue-target-ref (rum/use-ref nil)]
+    (let [*container-ref (hooks/use-ref nil)
+          *search-ref (hooks/use-ref nil)
+          *rescue-target-ref (hooks/use-ref nil)]
       ;; Track header height for sticky offset
       (hooks/use-effect!
        (fn []
-         (when-let [^js el (rum/deref *container-ref)]
+         (when-let [^js el (hooks/deref *container-ref)]
            (when-let [header (.querySelector el ":scope > header")]
              (let [update-h! #(let [h (.-offsetHeight header)]
                                 (.setProperty (.-style el) "--shortcut-header-h" (str h "px")))
@@ -1241,7 +1251,7 @@
       ;; dialog element itself and compute available width from its clientWidth.
       (hooks/use-effect!
        (fn []
-         (when-let [^js el (rum/deref *container-ref)]
+         (when-let [^js el (hooks/deref *container-ref)]
            (when-let [^js dialog (.closest el ".ui__dialog-content")]
              (let [aside (.querySelector dialog "aside")
                    inner (.closest el ".cp__settings-inner")
@@ -1263,8 +1273,8 @@
       ;; Rescue focus when a fold removes the focused row from DOM
       (hooks/use-effect!
        (fn []
-         (when-let [target (rum/deref *rescue-target-ref)]
-           (rum/set-ref! *rescue-target-ref nil)
+         (when-let [target (hooks/deref *rescue-target-ref)]
+           (hooks/set-ref! *rescue-target-ref nil)
            (when (or (nil? (.-activeElement js/document))
                      (identical? (.-activeElement js/document) (.-body js/document)))
              (.focus target #js {:focusVisible true})
@@ -1278,7 +1288,7 @@
 
        [:article
         (when-not ready?
-          [:p.py-8.flex.justify-center (ui/loading "")])
+          [:div.py-8.flex.justify-center (ui/loading "")])
 
         (when (and ready? no-results?)
           [:div.shortcut-empty-state
@@ -1326,7 +1336,7 @@
                                    "Home"      0
                                    "End"       (dec (count items)))]
                     (if (nil? next-idx)
-                      (some-> (rum/deref *search-ref) (.focus))
+                      (some-> (hooks/deref *search-ref) (.focus))
                       (when-let [target (nth items next-idx nil)]
                         (.focus target #js {:focusVisible true})
                         (scroll-row-into-view! target)))))))}
@@ -1352,7 +1362,7 @@
                                  (when (and folding?
                                             active-el
                                             (some-> active-el (.closest "li.shortcut-row")))
-                                   (rum/set-ref! *rescue-target-ref header-el))
+                                   (hooks/set-ref! *rescue-target-ref header-el))
                                  (set-folded-categories! ((if folded? disj conj) folded-categories c))))
                   :on-key-down (fn [^js e]
                                  (when (contains? #{13 32} (.-keyCode e))
@@ -1418,7 +1428,7 @@
                                (for [b user-binding
                                      :when (string? b)]
                                  [:span {:key b :style {:display "contents"}}
-                                  (shui/shortcut b {:chord-separator (t :keymap/chord-separator)})]))]
+                                  (shui/shortcut b {:chord-separator "->"})]))]
 
                             :else
                             (for [b binding
@@ -1426,4 +1436,4 @@
                               [:span {:key b :style {:display "contents"}}
                                (shui/shortcut (dh/binding-for-display id b)
                                               {:raw-binding [b]
-                                               :chord-separator (t :keymap/chord-separator)})]))]])))))])])]])))
+                                               :chord-separator "->"})]))]])))))])])]])))

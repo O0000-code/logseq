@@ -18,7 +18,7 @@
             [logseq.db.sqlite.util :as sqlite-util]
             [logseq.sdk.assets :as sdk-assets]
             [logseq.sdk.core]
-            [logseq.sdk.experiments]
+            [logseq.sdk.experiments :as exper]
             [logseq.sdk.ui :as sdk-ui]
             [logseq.sdk.utils :as sdk-utils]
             [promesa.core :as p]))
@@ -51,6 +51,7 @@
 (def ^:export unlink_installed_web_plugin api-plugin/unlink_installed_web_plugin)
 (def ^:export unlink_plugin_user_settings api-plugin/unlink_plugin_user_settings)
 (def ^:export register_plugin_slash_command api-plugin/register_plugin_slash_command)
+(def ^:export unregister_plugin_slash_command api-plugin/unregister_plugin_slash_command)
 (def ^:export register_plugin_simple_command api-plugin/register_plugin_simple_command)
 (def ^:export unregister_plugin_simple_command api-plugin/unregister_plugin_simple_command)
 (def ^:export register_search_service api-plugin/register_search_service)
@@ -83,6 +84,7 @@
 (def ^:export clear_right_sidebar_blocks api-app/clear_right_sidebar_blocks)
 (def ^:export push_state api-app/push_state)
 (def ^:export replace_state api-app/replace_state)
+(def ^:export get_current_route api-app/get_current_route)
 
 ;; db
 (def ^:export q api-db/q)
@@ -129,6 +131,7 @@
 (def ^:export remove_block api-editor/remove_block)
 (def ^:export remove_block_property api-editor/remove_block_property)
 (def ^:export rename_page api-editor/rename_page)
+(def ^:export restore_page api-editor/restore_page)
 (def ^:export restore_editing_cursor api-editor/restore_editing_cursor)
 (def ^:export save_focused_code_editor_content api-editor/save_focused_code_editor_content)
 (def ^:export select_block api-editor/select_block)
@@ -146,6 +149,7 @@
 (def ^:export make_asset_url sdk-assets/make_url)
 
 ;; experiments
+(def ^:export exper_register_fenced_code_renderer exper/register_fenced_code_renderer)
 (defn ^:export exper_load_scripts
   [pid & scripts]
   (when-let [^js _pl (plugin-handler/get-plugin-inst pid)]
@@ -181,7 +185,9 @@
 ;; search
 (defn ^:export search
   [q' & [opts]]
-  (-> (search-handler/search (state/get-current-repo) q' (if opts (js->clj opts :keywordize-keys true) {}))
+  (-> (search-handler/search
+       (state/get-current-repo) q'
+       (if opts (js->clj opts :keywordize-keys true) {}))
       (p/then #(bean/->js (sdk-utils/normalize-keyword-for-json %)))))
 
 ;; helpers
@@ -217,7 +223,7 @@
 (def ^:export set_property_node_tags db-based-api/set-property-node-tags)
 
 ;; Internal db-based CLI APIs
-;; CLI APIs should use ensure-db-graph unless they have a nested check in cli-common-mcp-tools ns
+;; CLI APIs should use ensure-db-graph unless they have a nested check in logseq.api.db-based.tools.
 (defn- ensure-db-graph
   [f]
   (fn ensure-db-graph-wrapper [& args]

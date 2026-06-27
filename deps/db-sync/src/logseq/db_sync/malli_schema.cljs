@@ -4,6 +4,7 @@
 
 (def tx-entry-schema
   [:map
+   [:tx-id {:optional true} :uuid]
    [:tx :string]
    [:outliner-op {:optional true} [:maybe :keyword]]])
 
@@ -37,13 +38,22 @@
      [:type [:= "ping"]]]]])
 
 (def tx-reject-reason-schema
-  [:enum "stale" "empty tx data" "invalid tx" "invalid t-before" "db transact failed"])
+  [:enum "stale"
+   "empty tx data"
+   "invalid tx"
+   "invalid t-before"
+   "db transact failed"
+   "snapshot upload in progress"])
 
 (def tx-reject-schema
   [:map
    [:type [:= "tx/reject"]]
    [:reason tx-reject-reason-schema]
    [:t {:optional true} :int]
+   [:success-tx-ids {:optional true} [:sequential :uuid]]
+   [:failed-tx-id {:optional true} :uuid]
+   [:missing-block-uuids {:optional true} [:sequential :uuid]]
+   [:error-detail {:optional true} :string]
    [:data {:optional true} :string]])
 
 (def user-presence-schema
@@ -70,6 +80,10 @@
    [:type [:= "tx/batch/ok"]]
    [:t :int]
    [:checksum {:optional true} :string]])
+
+(def repair-blocks-response-schema
+  [:map
+   [:tx :string]])
 
 (def ws-server-message-schema
   [:multi {:dispatch :type}
@@ -110,6 +124,9 @@
 (def graph-member-role-schema
   [:enum "manager" "member"])
 
+(def client-revision-entry
+  [:client-revision {:optional true} :string])
+
 (def graph-info-schema
   [:map
    [:graph-id :string]
@@ -138,7 +155,8 @@
 
 (def graphs-list-response-schema
   [:map
-   [:graphs [:sequential graph-info-schema]]])
+   [:graphs [:sequential graph-info-schema]]
+   [:user-rsa-keys-exists? {:optional true} :boolean]])
 
 (def graph-create-request-schema
   [:map
@@ -175,6 +193,7 @@
 
 (def tx-batch-request-schema
   [:map
+   client-revision-entry
    [:t-before :int]
    [:txs [:sequential tx-entry-schema]]])
 
@@ -253,6 +272,7 @@
    :worker/health http-ok-response-schema
    :sync/health http-ok-response-schema
    :sync/pull pull-ok-schema
+   :sync/repair-blocks repair-blocks-response-schema
    :sync/tx-batch [:or tx-batch-ok-schema tx-reject-schema http-error-response-schema]
    :sync/snapshot-download snapshot-download-response-schema
    :sync/snapshot-upload snapshot-upload-response-schema

@@ -5,12 +5,12 @@
             [frontend.context.i18n :refer [t]]
             [frontend.db :as db]
             [logseq.common.config :as common-config]
-            [rum.core :as rum]))
+            [io.factorhouse.hsx.core :as hsx]))
 
 (defn- columns
   []
   (->> [{:id :block/title
-         :name (t :block/name)
+         :name (t :page/name)
          :cell (fn [_table row _column]
                  (component-block/page-cp {:show-non-exists-page? true
                                            :skip-async-load? true
@@ -24,7 +24,7 @@
        (remove nil?)
        vec))
 
-(rum/defc all-pages < rum/static
+(hsx/defc all-pages
   []
   (let [columns' (views/build-columns {} (columns)
                                       {:with-object-name? false
@@ -33,5 +33,4 @@
      (views/view {:view-parent (db/get-page common-config/views-page-name)
                   :view-feature-type :all-pages
                   :show-items-count? true
-                  :columns columns'
-                  :title-key :all-pages/table-title})]))
+                  :columns columns'})]))

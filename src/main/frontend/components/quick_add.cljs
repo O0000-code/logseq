@@ -1,43 +1,40 @@
 (ns frontend.components.quick-add
   "Quick add"
   (:require [frontend.components.page :as page]
-            [frontend.date :as date]
+            [frontend.context.i18n :refer [t]]
             [frontend.db :as db]
             [frontend.db.model :as model]
             [frontend.handler.editor :as editor-handler]
             [frontend.state :as state]
             [frontend.util :as util]
+            [io.factorhouse.hsx.core :as hsx]
             [logseq.common.config :as common-config]
             [logseq.db :as ldb]
             [logseq.shui.hooks :as hooks]
-            [logseq.shui.ui :as shui]
-            [rum.core :as rum]))
+            [logseq.shui.ui :as shui]))
 
-(rum/defc page-blocks
+(hsx/defc page-blocks
   [page]
-  (let [[scroll-container set-scroll-container] (rum/use-state nil)
-        *ref (rum/use-ref nil)]
+  (let [[scroll-container set-scroll-container] (hooks/use-state nil)
+        *ref (hooks/use-ref nil)]
     (hooks/use-effect!
-     #(set-scroll-container (rum/deref *ref))
+     #(set-scroll-container (hooks/deref *ref))
      [])
     [:div.content-inner
      {:ref *ref}
      (when scroll-container
        (page/page-blocks-cp page {:scroll-container scroll-container}))]))
 
-(rum/defc quick-add <
-  {:will-mount (fn [state]
-                 (state/clear-selection!)
-                 state)
-   :will-unmount (fn [state]
-                   (state/clear-selection!)
-                   state)
-   :did-mount (fn [state]
-                (when-not (util/mobile?)
-                  (editor-handler/quick-add-open-last-block!))
-                state)}
+(hsx/defc quick-add
   []
-  (when (model/get-journal-page (date/today))
+  (hooks/use-effect!
+   (fn []
+     (state/clear-selection!)
+     (when-not (util/mobile?)
+       (editor-handler/quick-add-open-last-block!))
+     #(state/clear-selection!))
+   [])
+  (when (model/get-today-journal-page)
     (when-let [add-page (ldb/get-built-in-page (db/get-db) common-config/quick-add-page-name)]
       (let [mobile? (util/mobile?)
             add-button [:div
@@ -47,16 +44,13 @@
                           :on-click (fn [_e]
                                       (editor-handler/quick-add-blocks!))}
                          (when-not mobile? (shui/shortcut ["mod" "e"]))
-                         "Add to today")]]
+                         (t :editor.quick-add/add-to-today))]]
         [:div.ls-quick-add.flex.flex-1.flex-col.w-full.gap-4
-         (when-not (util/mobile?)
+         (when-not mobile?
            [:div.flex.flex-row.justify-between.gap-4.items-center
-            {:class (if mobile?
-                      "pt-4"
-                      "border-b pb-4")}
+            {:class "border-b pb-4"}
             [:div.font-medium
-             "Quick add"]
-            add-button])
+             (t :editor.quick-add/title)]])
          (if mobile?
            [:div.w-full.mt-4
             (page-blocks add-page)]

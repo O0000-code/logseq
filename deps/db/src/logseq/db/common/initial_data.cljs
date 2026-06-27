@@ -160,35 +160,56 @@
         (with-raw-title entity)
         (assoc :db/id (:db/id entity)))))
 
-(defn hidden-ref?
-  "Whether ref-block (for block with the `id`) should be hidden."
-  [db ref-block id]
-  (let [entity (d/entity db id)]
-    (or
-     (= (:db/id ref-block) id)
-     (= id (:db/id (:block/page ref-block)))
-     (= id (:db/id (:logseq.property/view-for ref-block)))
-     (entity-util/hidden? (:block/page ref-block))
-     (entity-util/hidden? ref-block)
-     (and (entity-util/class? entity)
-          (let [children (db-class/get-structured-children db id)
-                class-ids (set (conj children id))]
-            (some class-ids (map :db/id (:block/tags ref-block)))))
-     (some? (get ref-block (:db/ident entity))))))
+(defn hidden-ref-pred
+  "Build a predicate that determines if a ref block should be hidden for `id`.
+   Reuses cached class/tag context so callers can check many refs efficiently."
+  [db id]
+  (let [entity (d/entity db id)
+        entity-ident (:db/ident entity)
+        class-ids (when (entity-util/class? entity)
+                    (let [children (db-class/get-structured-children db id)]
+                      (set (conj children id))))]
+    (fn [ref-block]
+      (or
+       (= (:db/id ref-block) id)
+       (= id (:db/id (:block/page ref-block)))
+       (= id (:db/id (:logseq.property/view-for ref-block)))
+       (entity-util/hidden? (:block/page ref-block))
+       (entity-util/hidden? ref-block)
+       (and class-ids
+            (some class-ids (map :db/id (:block/tags ref-block))))
+       (and entity-ident
+            (some? (get ref-block entity-ident)))))))
 
 (defn get-block-refs
   [db id]
   (let [with-alias (->> (get-block-alias db id)
                         (cons id)
-                        distinct)]
+                        distinct)
+        hidden-ref?* (hidden-ref-pred db id)]
     (some->> with-alias
              (map #(d/entity db %))
              (mapcat :block/_refs)
-             (remove (fn [ref-block] (hidden-ref? db ref-block id))))))
+             (remove hidden-ref?*))))
 
 (defn get-block-refs-count
   [db id]
-  (count (get-block-refs db id)))
+  (let [with-alias (->> (get-block-alias db id)
+                        (cons id)
+                        distinct)
+        hidden-ref?* (hidden-ref-pred db id)
+        entity-by-id (memoize (fn [eid] (d/entity db eid)))]
+    (reduce
+     (fn [total alias-id]
+       (+ total
+          (reduce (fn [n datom]
+                    (if (hidden-ref?* (entity-by-id (:e datom)))
+                      n
+                      (inc n)))
+                  0
+                  (d/datoms db :avet :block/refs alias-id))))
+     0
+     with-alias)))
 
 (defn ^:large-vars/cleanup-todo get-block-and-children
   [db id-or-page-name {:keys [children? properties include-collapsed-children?]
@@ -241,7 +262,8 @@
                                                       (and children? (empty? properties))
                                                       :children
                                                       :else
-                                                      :self)))]
+                                                      :self)
+                            :block.temp/has-children? (some? (first (d/datoms db :avet :block/parent (:db/id block))))))]
         (cond->
          {:block block'}
           children?
@@ -256,8 +278,11 @@
          (keep (fn [d]
                  (when (<= (:v d) today)
                    (let [e (d/entity db (:e d))]
-                     (when (and (entity-util/journal? e) (:db/id e))
-                       e))))))))
+                     (when (and (entity-util/journal? e)
+                                (:db/id e)
+                                (not (entity-util/recycled? e)))
+                       e)))))
+         (common-util/distinct-by :db/id))))
 
 (defn- get-structured-datoms
   [db]
@@ -268,12 +293,12 @@
           (d/datoms db :avet :block/closed-value-property))
          (mapcat (fn [d]
                    (let [block-datoms (d/datoms db :eavt (:e d))
-                         properties-of-property-datoms
+                         property-description-datoms
                          (when (= (:v d) class-property-id)
-                           (when-let [desc (:logseq.property/default-value (d/entity db (:e d)))]
+                           (when-let [desc (:logseq.property/description (d/entity db (:e d)))]
                              (d/datoms db :eavt (:db/id desc))))]
-                     (if (seq properties-of-property-datoms)
-                       (concat block-datoms properties-of-property-datoms)
+                     (if (seq property-description-datoms)
+                       (concat block-datoms property-description-datoms)
                        block-datoms)))))))
 
 (defn- get-favorites
@@ -312,10 +337,16 @@
 (defn- get-all-user-datoms
   [db]
   (when (d/entity db :logseq.property.user/email)
-    (mapcat
-     (fn [d]
-       (d/datoms db :eavt (:e d)))
-     (d/datoms db :avet :logseq.property.user/email))))
+    (->> (d/datoms db :avet :logseq.property.user/email)
+         (mapcat
+          (fn [d] (d/datoms db :eavt (:e d)))))))
+
+(defn- get-list-style-values
+  [db]
+  (->> (d/datoms db :avet :logseq.property/order-list-type)
+       (map :v)
+       (distinct)
+       (mapcat (fn [v] (d/datoms db :eavt v)))))
 
 (defn get-initial-data
   "Returns current database schema and initial data"
@@ -333,7 +364,6 @@
                         :logseq.kv/graph-remote?
                         :logseq.kv/latest-code-lang
                         :logseq.kv/graph-backup-folder
-                        :logseq.kv/graph-text-embedding-model-name
                         :logseq.property/empty-placeholder])
         favorites (get-favorites db)
         recent-updated-pages (let [pages (get-recent-updated-pages db)]
@@ -341,6 +371,7 @@
         all-files (get-all-files db)
         structured-datoms (get-structured-datoms db)
         user-datoms (get-all-user-datoms db)
+        list-style-datoms (get-list-style-values db)
         pages-datoms (let [contents-id (get-first-page-by-title db "Contents")
                            capture-page-id (:db/id (db-db/get-built-in-page db common-config/quick-add-page-name))
                            views-id (get-first-page-by-title db common-config/views-page-name)
@@ -350,6 +381,7 @@
         data (->> (concat idents
                           structured-datoms
                           user-datoms
+                          list-style-datoms
                           favorites
                           recent-updated-pages
                           all-files

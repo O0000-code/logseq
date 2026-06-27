@@ -7,7 +7,7 @@
             [frontend.components.cmdk.state :as cmdk-state]
             [frontend.components.icon :as icon-component]
             [frontend.config :as config]
-            [frontend.context.i18n :refer [t]]
+            [frontend.context.i18n :refer [interpolate-rich-text t t-en t-locale]]
             [frontend.db :as db]
             [frontend.db.async :as db-async]
             [frontend.db.model :as model]
@@ -19,7 +19,6 @@
             [frontend.handler.notification :as notification]
             [frontend.handler.page :as page-handler]
             [frontend.handler.route :as route-handler]
-            [frontend.mixins :as mixins]
             [frontend.modules.shortcut.core :as shortcut]
             [frontend.modules.shortcut.utils :as shortcut-utils]
             [frontend.search :as search]
@@ -36,15 +35,16 @@
             [logseq.shui.hooks :as hooks]
             [logseq.shui.ui :as shui]
             [promesa.core :as p]
-            [rum.core :as rum]))
+            [io.factorhouse.hsx.core :as hsx]))
 
 (defn- get-action
   []
   (:action (:search/args @state/state)))
 
-(defn translate [t {:keys [id desc]}]
+(defn translate
+  [t-fn {:keys [id desc]}]
   (when id
-    (let [desc-i18n (t (shortcut-utils/decorate-namespace id))]
+    (let [desc-i18n (t-fn (shortcut-utils/decorate-namespace id))]
       (if (string/starts-with? desc-i18n "{Missing key")
         desc
         desc-i18n))))
@@ -60,13 +60,27 @@
   (let [current-page (state/get-current-page)]
     (->>
      [(when current-page
-        {:filter {:group :current-page} :text "Search only current page" :info "Add filter to search" :icon-theme :gray :icon "file"})
-      {:filter {:group :nodes} :text "Search only nodes" :info "Add filter to search" :icon-theme :gray :icon "point-filled"}
-      {:filter {:group :code} :text "Search only code" :info "Add filter to search" :icon-theme :gray :icon "code"}
-      {:filter {:group :commands} :text "Search only commands" :info "Add filter to search" :icon-theme :gray :icon "command"}
-      {:filter {:group :files} :text "Search only files" :info "Add filter to search" :icon-theme :gray :icon "file"}
-      {:filter {:group :themes} :text "Search only themes" :info "Add filter to search" :icon-theme :gray :icon "palette"}]
+        {:filter {:group :current-page} :text (t :cmdk.filter/current-page) :info (t :cmdk.filter/add) :icon-theme :gray :icon "file"})
+      {:filter {:group :nodes} :text (t :cmdk.filter/nodes) :info (t :cmdk.filter/add) :icon-theme :gray :icon "point-filled"}
+      {:filter {:group :codes} :text (t :cmdk.filter/codes) :info (t :cmdk.filter/add) :icon-theme :gray :icon "code"}
+      {:filter {:group :commands} :text (t :cmdk.filter/commands) :info (t :cmdk.filter/add) :icon-theme :gray :icon "command"}
+      {:filter {:group :files} :text (t :cmdk.filter/files) :info (t :cmdk.filter/add) :icon-theme :gray :icon "file"}
+      {:filter {:group :themes} :text (t :cmdk.filter/themes) :info (t :cmdk.filter/add) :icon-theme :gray :icon "palette"}]
      (remove nil?))))
+
+(defn- group-label
+  [group]
+  (case group
+    :filters (t :cmdk.group/filters)
+    :current-page (t :cmdk.group/current-page)
+    :nodes (t :cmdk.group/nodes)
+    :codes (t :cmdk.group/codes)
+    :files (t :cmdk.group/files)
+    :create (t :cmdk.group/create)
+    :recently-updated-pages (t :cmdk.group/recently-updated)
+    :commands (t :cmdk.group/commands)
+    :themes (t :cmdk.group/themes)
+    (name group)))
 
 ;; The results are separated into groups, and loaded/fetched/queried separately
 (def default-results
@@ -75,7 +89,7 @@
    :favorites      {:status :success :show :less :items nil}
    :current-page   {:status :success :show :less :items nil}
    :nodes          {:status :success :show :less :items nil}
-   :code           {:status :success :show :less :items nil}
+   :codes          {:status :success :show :less :items nil}
    :files          {:status :success :show :less :items nil}
    :themes         {:status :success :show :less :items nil}
    :filters        {:status :success :show :less :items nil}})
@@ -94,26 +108,26 @@
                   (when (ldb/class? class)
                     class))]
       (->> [{:text (cond
-                     class "Configure tag"
-                     class? "Create tag"
-                     :else "Create page")
+                     class (t :cmdk.create/configure-tag)
+                     class? (t :cmdk.create/tag)
+                     :else (t :cmdk.create/page))
              :icon (if class "settings" "new-page")
              :icon-theme :gray
              :info (cond
                      class
-                     (str "Configure #" class-name)
+                     (t :cmdk.info/configure-tag class-name)
                      class?
-                     (str "Create tag called '" class-name "'")
+                     (t :cmdk.info/create-tag class-name)
                      :else
-                     (str "Create page called '" q "'"))
+                     (t :cmdk.info/create-page q))
              :source-create :page
              :class class}]
            (remove nil?)))))
 
 ;; Take the results, decide how many items to show, and order the results appropriately
 (defn state->results-ordered
-  [state search-mode]
-  (let [sidebar? (:sidebar? (last (:rum/args state)))
+  [state]
+  (let [sidebar? (get-in state [:opts :sidebar?])
         results @(::results state)
         input @(::input state)
         filter' @(::filter state)
@@ -139,45 +153,39 @@
         include-slash? (string/includes? input "/")
         start-with-slash? (string/starts-with? input "/")
         order* (cond
-                 (= search-mode :graph)
-                 []
-
                  start-with-slash?
-                 [["Filters" :filters (visible-items :filters)]
-                  ["Current page"   :current-page   (visible-items :current-page)]
-                  ["Nodes"          :nodes         (visible-items :nodes)]]
+                 [[(group-label :filters)        :filters       (visible-items :filters)]
+                  [(group-label :current-page)   :current-page  (visible-items :current-page)]
+                  [(group-label :nodes)          :nodes         (visible-items :nodes)]]
 
                  include-slash?
                  [(when-not node-exists?
-                    ["Create"         :create         (create-items input)])
+                    [(group-label :create)       :create        (create-items input)])
 
-                  ["Current page"   :current-page   (visible-items :current-page)]
-                  ["Nodes"         :nodes         (visible-items :nodes)]
-                  ["Files"          :files          (visible-items :files)]
-                  ["Filters" :filters (visible-items :filters)]]
+                  [(group-label :current-page)   :current-page  (visible-items :current-page)]
+                  [(group-label :nodes)          :nodes         (visible-items :nodes)]
+                  [(group-label :files)          :files         (visible-items :files)]
+                  [(group-label :filters)        :filters       (visible-items :filters)]]
 
                  filter-group
                  [(when (= filter-group :nodes)
-                    ["Current page"   :current-page   (visible-items :current-page)])
-                  [(cond
-                     (= filter-group :current-page) "Current page"
-                     (= filter-group :code) "Code"
-                     :else (name filter-group))
+                    [(group-label :current-page) :current-page  (visible-items :current-page)])
+                  [(group-label filter-group)
                    filter-group
                    (visible-items filter-group)]
                   (when-not node-exists?
-                    ["Create"         :create         (create-items input)])]
+                    [(group-label :create)         :create         (create-items input)])]
 
                  :else
                  (->>
                   [(when-not node-exists?
-                     ["Create"         :create       (create-items input)])
-                   ["Current page"     :current-page   (visible-items :current-page)]
-                   ["Nodes"            :nodes         (visible-items :nodes)]
-                   ["Recently updated" :recently-updated-pages (visible-items :recently-updated-pages)]
-                   ["Commands"         :commands       (visible-items :commands)]
-                   ["Files"            :files          (visible-items :files)]
-                   ["Filters"          :filters        (visible-items :filters)]]
+                     [(group-label :create)         :create         (create-items input)])
+                   [(group-label :current-page)     :current-page   (visible-items :current-page)]
+                   [(group-label :nodes)            :nodes          (visible-items :nodes)]
+                   [(group-label :recently-updated-pages) :recently-updated-pages (visible-items :recently-updated-pages)]
+                   [(group-label :commands)         :commands       (visible-items :commands)]
+                   [(group-label :files)            :files          (visible-items :files)]
+                   [(group-label :filters)          :filters        (visible-items :filters)]]
                   (remove nil?)))
         order (remove nil? order*)]
     (for [[group-name group-key group-items] order]
@@ -185,25 +193,33 @@
        group-key
        (if (= group-key :create)
          (count group-items)
-         (count (get-in results [group-key :items])))
+         (or (get-in results [group-key :matched-count])
+             (count (get-in results [group-key :items]))))
        (mapv #(assoc % :group group-key :item-index (vswap! index inc)) group-items)])))
 
-(defn state->highlighted-item [state]
-  (or (some-> state ::highlighted-item deref)
-      (first @(::all-items-cache state))))
+(defn state->highlighted-item
+  ([state]
+   (state->highlighted-item state (::fallback-item state)))
+  ([state fallback-item]
+   (or (some-> state ::highlighted-item deref)
+       fallback-item
+       (first @(::all-items-cache state)))))
 
-(defn state->action [state]
-  (let [highlighted-item (state->highlighted-item state)
+(defn state->action
+  ([state]
+   (state->action state nil))
+  ([state fallback-item]
+   (let [highlighted-item (state->highlighted-item state fallback-item)
         action (get-action)]
-    (cond (and (:source-block highlighted-item) (= action :move-blocks)) :trigger
-          (:source-block highlighted-item) :open
-          (:file-path highlighted-item) :open
-          (:source-search highlighted-item) :search
-          (:source-command highlighted-item) :trigger
-          (:source-create highlighted-item) :create
-          (:filter highlighted-item) :filter
-          (:source-theme highlighted-item) :theme
-          :else nil)))
+     (cond (and (:source-block highlighted-item) (= action :move-blocks)) :trigger
+           (:source-block highlighted-item) :open
+           (:file-path highlighted-item) :open
+           (:source-search highlighted-item) :search
+           (:source-command highlighted-item) :trigger
+           (:source-create highlighted-item) :create
+           (:filter highlighted-item) :filter
+           (:source-theme highlighted-item) :theme
+           :else nil))))
 
 ;; Each result group has it's own load-results function
 (defmulti load-results (fn [group _state] group))
@@ -222,15 +238,55 @@
       (reset! !results (assoc-in default-results [:recently-updated-pages :items] recent-pages)))))
 
 ;; The commands search uses the command-palette handler
+(defn- translate-locale
+  "Return the locale-only translation for a command.
+  Returns nil when the locale is :en or the key has no translation in the
+  current locale — no English fallback is applied."
+  [{:keys [id]}]
+  (when id
+    (t-locale (shortcut-utils/decorate-namespace id))))
+
+(defonce ^:private !commands-cache (atom {:lang nil :commands nil}))
+
+(defn- get-commands-for-search
+  "Return commands with locale, English, and (for :zh-CN) pinyin-initial fields.
+  :locale-t — locale-only translation; nil when locale is :en or key has no
+              locale entry (no English fallback).
+  :en-t     — English translation; always present.
+  :pinyin-t — Simplified Chinese pinyin initials; present only for :zh-CN.
+  Cached by language — rebuilt only when preferred-language changes."
+  []
+  (let [lang (or (some-> (:preferred-language @state/state) keyword) :en)
+        cache @!commands-cache]
+    (if (= (:lang cache) lang)
+      (:commands cache)
+      (let [zh-cn? (= lang :zh-CN)
+            cmds   (->> (cp-handler/top-commands 1000)
+                        (map (fn [cmd]
+                               (let [locale-t (when-not (= lang :en) (translate-locale cmd))
+                                     en-t     (translate t-en cmd)]
+                                 (cond-> (assoc cmd :en-t en-t)
+                                   locale-t              (assoc :locale-t locale-t)
+                                   (and zh-cn? locale-t) (assoc :pinyin-t (search/hanzi->initials locale-t)))))))]
+        (reset! !commands-cache {:lang lang :commands cmds})
+        cmds))))
+
 (defmethod load-results :commands [group state]
-  (let [!input (::input state)
+  (let [!input   (::input state)
         !results (::results state)]
     (swap! !results assoc-in [group :status] :loading)
-    (let [commands (->> (cp-handler/top-commands 1000)
-                        (map #(assoc % :t (translate t %))))
+    (let [lang        (or (some-> (:preferred-language @state/state) keyword) :en)
+          en?         (= lang :en)
+          zh-cn?      (= lang :zh-CN)
+          commands    (get-commands-for-search)
+          extract-fns (cond
+                        en?    [:en-t]
+                        zh-cn? [:locale-t :en-t :pinyin-t]
+                        :else  [:locale-t :en-t])
           search-results (if (string/blank? @!input)
                            commands
-                           (search/fuzzy-search commands @!input {:extract-fn :t}))]
+                           (search/fuzzy-search-multi commands @!input
+                                                      {:extract-fns extract-fns}))]
       (->> search-results
            (map #(hash-map :icon "command"
                            :icon-theme :gray
@@ -290,19 +346,20 @@
         current-page? (and current-page-uuid
                            (= current-page-uuid result-page-id))
         icon (icon-component/get-node-icon-cp entity {:ignore-current-icon? true})
-        title (block-handler/block-unique-title entity
-                                                :alias (:block/title source-page)
-                                                :truncate? false)]
+        title (:block.temp/unique-title page)
+        plain-title (block-handler/block-unique-title entity
+                                                       :alias (:block/title source-page)
+                                                       :truncate? false)]
     (hash-map :icon icon
               :icon-theme :gray
               :text (if (string/includes? title "$pfts_2lqh>$") ; sqlite matched
-                      [:span {"data-testid" title}
+                      [:span {"data-testid" plain-title}
                        (highlight-content-query title input)]
                       title)
               :header (when (:block/parent entity)
                         (block/breadcrumb {:disable-preview? true
                                            :search? true} repo (:block/uuid page)
-                                          {:disabled? true}))
+                                          {:disabled? true :variant :search-result}))
               :result-type :page
               :current-page? current-page?
               :alias (:alias page)
@@ -311,18 +368,27 @@
 (defn block-item
   [repo block current-page-uuid input]
   (let [id (:block/uuid block)
-        text (block-handler/block-unique-title block :truncate? false)
+        text (:block.temp/unique-title block)
         icon (icon-component/get-node-icon-cp block {:ignore-current-icon? true})]
     {:icon icon
      :icon-theme :gray
      :text (highlight-content-query text input)
      :header (block/breadcrumb {:disable-preview? true
                                 :search? true} repo id
-                               {:disabled? true})
+                               {:disabled? true :variant :search-result})
      :result-type :block
      :current-page? (when-let [page-id (:block/page block)]
                       (= page-id current-page-uuid))
      :source-block block}))
+
+(defn- block-search-result->items
+  [result]
+  (if (map? result)
+    {:blocks (:items result)
+     :matched-count (or (:matched-count result)
+                        (count (:items result)))}
+    {:blocks result
+     :matched-count (count result)}))
 
 ;; The blocks search action uses an existing handler
 (defmethod load-results :nodes [group state]
@@ -330,13 +396,16 @@
         !results (::results state)
         repo (state/get-current-repo)
         current-page-uuid (page-util/get-current-page-uuid)
+        expanded? (::expanded? state)
         opts (cmdk-state/cmdk-block-search-options
               {:filter-group :nodes
                :dev? config/dev?
-               :action (get-action)})]
+               :action (get-action)
+               :expanded? expanded?})]
     (swap! !results assoc-in [group :status] :loading)
     (swap! !results assoc-in [:current-page :status] :loading)
-    (p/let [blocks (search/block-search repo @!input opts)
+    (p/let [search-result (search/block-search repo @!input opts)
+            {:keys [blocks matched-count]} (block-search-result->items search-result)
             blocks (remove nil? blocks)
             items (keep (fn [block]
                           (if (:page? block)
@@ -344,17 +413,23 @@
                             (block-item repo block current-page-uuid @!input))) blocks)]
       (if (= group :current-page)
         (let [items-on-current-page (filter :current-page? items)]
-          (swap! !results update group merge {:status :success :items items-on-current-page}))
-        (swap! !results update group merge {:status :success :items items})))))
+          (swap! !results update group merge {:status :success
+                                              :items items-on-current-page
+                                              :matched-count (count items-on-current-page)
+                                              :has-more? false}))
+        (swap! !results update group merge {:status :success
+                                            :items items
+                                            :matched-count matched-count
+                                            :has-more? (> matched-count (count items))})))))
 
-(defmethod load-results :code [group state]
+(defmethod load-results :codes [group state]
   (let [!input (::input state)
         !results (::results state)
         repo (state/get-current-repo)
         current-page (when-let [id (page-util/get-current-page-id)]
                        (db/entity id))
         opts (cmdk-state/cmdk-block-search-options
-              {:filter-group :code
+              {:filter-group :codes
                :dev? config/dev?})]
     (swap! !results assoc-in [group :status] :loading)
     (p/let [blocks (search/block-search repo @!input opts)
@@ -381,15 +456,15 @@
 (defmethod load-results :themes [group state]
   (let [!input (::input state)
         !results (::results state)
-        themes (state/sub :plugin/installed-themes)
+        themes (state/get-state :plugin/installed-themes)
         themes (if (string/blank? @!input)
                  themes
                  (search/fuzzy-search themes @!input :limit 100 :extract-fn :name))
-        themes (cons {:name "Logseq Default theme"
+        themes (cons {:name (t :theme/logseq-default)
                       :pid "logseq-classic-theme"
-                      :mode (state/sub :ui/theme)
+                      :mode (state/get-state :ui/theme)
                       :url nil} themes)
-        selected (state/sub :plugin/selected-theme)]
+        selected (state/get-state :plugin/selected-theme)]
     (swap! !results assoc-in [group :status] :loading)
     (let [items (for [t themes
                       :let [selected? (= (:url t) selected)]]
@@ -419,13 +494,16 @@
     (let [!results (::results state)
           !input (::input state)
           repo (state/get-current-repo)
+          expanded? (::expanded? state)
           opts (cmdk-state/cmdk-block-search-options
                 {:filter-group :current-page
                  :dev? config/dev?
-                 :page-uuid (:block/uuid current-page)})]
+                 :page-uuid (:block/uuid current-page)
+                 :expanded? expanded?})]
       (swap! !results assoc-in [group :status] :loading)
       (swap! !results assoc-in [:current-page :status] :loading)
-      (p/let [blocks (search/block-search repo @!input opts)
+      (p/let [search-result (search/block-search repo @!input opts)
+              {:keys [blocks matched-count]} (block-search-result->items search-result)
               blocks (remove nil? blocks)
               items (map (fn [block]
                            (let [id (if (uuid? (:block/uuid block))
@@ -434,11 +512,15 @@
                              {:icon "node"
                               :icon-theme :gray
                               :text (highlight-content-query (:block/title block) @!input)
-                              :header (block/breadcrumb {:search? true} repo id {:disabled? true})
+                              :header (block/breadcrumb {:search? true} repo id
+                                                        {:disabled? true :variant :search-result})
                               :result-type (if (:page? block) :page :block)
                               :current-page? true
                               :source-block block})) blocks)]
-        (swap! !results update :current-page merge {:status :success :items items})))
+        (swap! !results update :current-page merge {:status :success
+                                                    :items items
+                                                    :matched-count matched-count
+                                                    :has-more? (> matched-count (count items))})))
     (reset! (::filter state) nil)))
 
 ;; The default load-results function triggers all the other load-results function
@@ -541,16 +623,11 @@
     (let [page? (page-item? item)
           block? (boolean (:source-block item))
           shift? (event-shift? event)
-          shift-or-sidebar? (or shift? (boolean (:open-sidebar? (:opts state))))
-          search-mode (:search/mode @state/state)
-          graph-view? (= search-mode :graph)]
+          shift-or-sidebar? (or shift? (boolean (:open-sidebar? (:opts state))))]
       (cond
         (:file-path item) (do
                             (open-file (:file-path item))
                             (shui/dialog-close! :ls-dialog-cmdk))
-        (and graph-view? page? (not shift?)) (do
-                                               (state/add-graph-search-filter! @(::input state))
-                                               (reset! (::input state) ""))
         (and shift-or-sidebar? block?) (handle-action :open-block-right state event)
         (and shift-or-sidebar? page?) (handle-action :open-page-right state event)
         page? (handle-action :open-page state event)
@@ -580,17 +657,21 @@
 (defmethod handle-action :create [_ state _event]
   (let [item (state->highlighted-item state)
         !input (::input state)
+        input @!input
         create-class? (string/starts-with? @!input "#")
         create-page? (= :page (:source-create item))
         class (when create-class? (get-class-from-input @!input))]
-    (if (and (= (:text item) "Configure tag") (:class item))
+    (if (:class item)
       (state/pub-event! [:dialog/show-block (:class item) {:tag-dialog? true}])
       (p/let [result (cond
                        create-class?
                        (db-page-handler/<create-class! class
                                                        {:redirect? false})
-                       create-page? (page-handler/<create! @!input {:redirect? true}))]
+                       create-page? (page-handler/<create! input {:redirect? true
+                                                                  :edit? false}))]
         (shui/dialog-close! :ls-dialog-cmdk)
+        (when create-page?
+          (page-handler/edit-page-when-present! (or (:block/uuid result) input)))
         (when (and create-class? result)
           (state/pub-event! [:dialog/show-block result {:tag-dialog? true}]))))))
 
@@ -611,7 +692,7 @@
                         @(::input state))
         _ (when (not= input-value @(::input state))
             (reset! (::input state) input-value))
-        opts (last (:rum/args state))]
+        opts (:opts state)]
     (cmdk-state/persist-last-cmdk-search!
      opts
      (:search/mode @state/state)
@@ -744,7 +825,7 @@
     (when-let [row-el (.closest item-el "[data-item-index]")]
       (scroll-to-highlight! state row-el))))
 
-(rum/defc render-result-list-item < rum/static
+(hsx/defc render-result-list-item
   [state group highlighted? mouse-mode? item hls-page? text input]
   (let [item-idx (:item-index item)
         scroll-root @(::scroll-container-ref state)
@@ -763,7 +844,7 @@
                      :on-click (fn [e]
                                  (util/stop-propagation e)
                                  (reset! (::highlighted-item state) item)
-                                 (handle-action :default state e)
+                                 (handle-action :default (assoc state ::fallback-item item) e)
                                  (when-let [on-click (:on-click item)]
                                    (on-click e)))
                      :on-mouse-move (fn [e]
@@ -779,41 +860,51 @@
               nil)]
     [:div {:data-item-index item-idx}
      (if (= group :nodes)
-       (ui/lazy-visible (fn [] item) {:root scroll-root
-                                      :root-margin "500px 0px"})
-       item)]))
+      (ui/lazy-visible (fn [] item) {:root scroll-root
+                                     :root-margin "500px 0px"})
+      item)]))
 
-(rum/defcs result-group
-  < rum/reactive
-  [state' state title group visible-items first-item sidebar?]
-  (let [{:keys [show items]} (some-> state ::results deref group)
-        focus-source @(::focus-source state)
-        highlighted-item (or @(::highlighted-item state)
+(defn- show-more-results!
+  [state group]
+  (swap! (::results state) assoc-in [group :show] :more)
+  (when (contains? #{:nodes :current-page} group)
+    (load-results group (assoc state ::expanded? true))))
+
+(hsx/defc result-group
+  [state title group visible-items first-item sidebar?]
+  (let [[results] (hooks/use-atom (::results state))
+        [focus-source] (hooks/use-atom (::focus-source state))
+        [highlighted-item*] (hooks/use-atom (::highlighted-item state))
+        [input] (hooks/use-atom (::input state))
+        [filter'] (hooks/use-atom (::filter state))
+        {:keys [show items matched-count has-more?]} (some-> results group)
+        highlighted-item (or highlighted-item*
                              (when (= :keyboard focus-source) first-item))
         mouse-mode? (= :mouse focus-source)
-        input @(::input state)
-        filter' @(::filter state)
         can-show-less? (< (get-group-limit group) (count visible-items))
-        can-show-more? (< (count visible-items) (count items))
+        can-show-more? (or has-more?
+                           (< (count visible-items) (count items)))
         show-less #(swap! (::results state) assoc-in [group :show] :less)
-        show-more #(swap! (::results state) assoc-in [group :show] :more)]
-    [:div {:class         (if (= title "Create")
+        show-more #(show-more-results! state group)]
+    [:div {:class         (if (= group :create)
                             "border-b border-gray-06 last:border-b-0"
                             "border-b border-gray-06 pb-1 last:border-b-0")}
-     (when-not (= title "Create")
+     (when-not (= group :create)
        [:div {:class "text-xs py-1.5 px-3 flex justify-between items-center gap-2 text-gray-11 bg-gray-02 h-8"}
         [:div {:class "font-bold text-gray-11 pl-0.5 cursor-pointer select-none"
                :on-click (fn [_e]
                           ;; change :less to :more or :more to :less
-                           (swap! (::results state) update-in [group :show] {:more :less
-                                                                             :less :more}))}
+                           (if (= show :more)
+                             (show-less)
+                             (show-more)))}
          title]
         (when (not= group :create)
-          [:div {:class "pl-1.5 text-gray-12 rounded-full"
-                 :style {:font-size "0.7rem"}}
-           (if (<= 100 (count items))
-             "99+"
-             (count items))])
+          (let [display-count (or matched-count (count items))]
+            [:div {:class "pl-1.5 text-gray-12 rounded-full"
+                   :style {:font-size "0.7rem"}}
+             (if (<= 99 display-count)
+               "99+"
+               display-count)]))
 
         [:div {:class "flex-1"}]
 
@@ -828,10 +919,10 @@
                         ((if (= show :more) show-less show-more)))}
            (if (= show :more)
              [:div.flex.flex-row.gap-1.items-center
-              "Show less"
+              (t :ui/show-less)
               (shui/shortcut "mod up" {:style :compact})]
              [:div.flex.flex-row.gap-1.items-center
-              "Show more"
+              (t :ui/show-more)
               (shui/shortcut "mod down" {:style :compact})])])])
 
      [:div.search-results
@@ -841,9 +932,8 @@
                   text (some-> item :text)
                   source-block (some-> item :source-block)
                   hls-page? (and page? (pdf-utils/hls-file? (:block/title source-block)))]]
-        (rum/with-key
-          (render-result-list-item state group highlighted? mouse-mode? item hls-page? text input)
-          (:item-index item)))]]))
+        ^{:key (:item-index item)}
+        [render-result-list-item state group highlighted? mouse-mode? item hls-page? text input])]]))
 
 (defn move-highlight
   [state n]
@@ -887,9 +977,15 @@
         (reset! (::pending-scroll-item-idx state) nil)
         (reset! (::highlighted-item state) nil)))))
 
+(defn- refresh-results!
+  [state]
+  (persist-cmdk-query-state! state)
+  (load-results :default state))
+
 (defn handle-input-change
-  ([state e] (handle-input-change state e (.. e -target -value)))
-  ([state e input]
+  ([state e] (handle-input-change state e (.. e -target -value) true))
+  ([state e input] (handle-input-change state e input true))
+  ([state e input refresh?]
    (let [composing? (util/native-event-is-composing? e)
          e-type (gobj/getValueByKeys e "type")
          composing-end? (= e-type "compositionend")
@@ -905,9 +1001,8 @@
      (when container
        (set! (.-scrollTop container) 0))
      ;; retrieve the load-results function and update all the results
-     (when (or (not composing?) composing-end?)
-       (persist-cmdk-query-state! state)
-       (load-results :default state)))))
+     (when (and refresh? (or (not composing?) composing-end?))
+       (refresh-results! state)))))
 
 (defn- open-current-item-link
   "Opens a link for the current item if a page or block. For pages, opens the
@@ -926,7 +1021,7 @@
                          (:block/properties page'))]
         (if link
           (js/window.open link)
-          (notification/show! "No link found in this page's properties." :warning)))
+          (notification/show! (t :cmdk.error/no-page-link) :warning)))
 
       (:source-block item)
       (p/let [block-id (:block/uuid (:source-block item))
@@ -935,9 +1030,9 @@
               link (re-find editor-handler/url-regex (:block/title block))]
         (if link
           (js/window.open link)
-          (notification/show! "No link found in this block's content." :warning)))
+          (notification/show! (t :cmdk.error/no-block-link) :warning)))
       :else
-      (notification/show! "No link for this search item." :warning))))
+      (notification/show! (t :cmdk.error/no-search-item-link) :warning))))
 
 (defn- keydown-handler
   [state e]
@@ -954,7 +1049,7 @@
                       (swap! (::results state) assoc-in [highlighted-group :show] :less)))
         show-more (fn []
                     (when highlighted-group
-                      (swap! (::results state) assoc-in [highlighted-group :show] :more)))
+                      (show-more-results! state highlighted-group)))
         input @(::input state)
         as-keydown? (or (= keyname "ArrowDown") (and ctrl? (= keyname "n")))
         as-keyup? (or (= keyname "ArrowUp") (and ctrl? (= keyname "p")))]
@@ -962,10 +1057,13 @@
       (util/stop e))
 
     (cond
-      (and meta? enter?)
-      (let [repo (state/get-current-repo)]
-        (shui/dialog-close! :ls-dialog-cmdk)
-        (state/sidebar-add-block! repo input :search))
+      (cmdk-state/consume-open-search-sidebar-keydown!
+       e
+       (fn []
+         (let [repo (state/get-current-repo)]
+           (shui/dialog-close! :ls-dialog-cmdk)
+           (state/sidebar-add-block! repo input :search))))
+      nil
       as-keydown? (if meta?
                     (show-more)
                     (do
@@ -1019,37 +1117,27 @@
 
 (defn- input-placeholder
   []
-  (let [search-mode (:search/mode @state/state)
-        action (get-action)]
+  (let [action (get-action)]
     (cond
       (= action :move-blocks)
-      "Move blocks to"
-
-      (= search-mode :graph)
-      "Add graph filter"
+      (t :cmdk.input/move-blocks-placeholder)
 
       (= action :new-page)
-      "Type a page name to create"
+      (t :cmdk.input/type-page-name-placeholder)
 
       :else
-      "What are you looking for?")))
+      (t :cmdk.input/default-placeholder))))
 
-(rum/defc input-row
+(hsx/defc input-row
   [state all-items opts]
   (let [highlighted-item @(::highlighted-item state)
         input @(::input state)
         input-ref (::input-ref state)
-        debounced-on-change (hooks/use-callback
-                             (gfun/debounce
-                              (fn [e]
-                                (let [new-value (.-value (.-target e))]
-                                  (handle-input-change state e)
-                                  (when-let [on-change (:on-input-change opts)]
-                                    (on-change new-value))))
-                              200)
-                             [])
-        debounced-composition-end (hooks/use-callback
-                                   (gfun/debounce (fn [e] (handle-input-change state e)) 100)
+        debounced-refresh-results (hooks/use-callback
+                                   (gfun/debounce
+                                    (fn []
+                                      (refresh-results! state))
+                                    150)
                                    [])]
     (hooks/use-effect! (fn []
                          (reset! (::all-items-cache state) (vec all-items))
@@ -1075,111 +1163,125 @@
            (when timeout-id
              (js/clearTimeout timeout-id)))))
      [])
-    [:div {:class "bg-gray-02 border-b border-1 border-gray-07"}
+    [:div.cp__cmdk-input-row {:class "bg-gray-02 border-b border-1 border-gray-07"}
      [:input.cp__cmdk-search-input
-      {:class "text-xl bg-transparent border-none w-full outline-none px-3 py-3"
+      {:class "text-xl bg-transparent !border-none w-full !outline-none !shadow-none px-3 py-3 focus:!border-none focus:!outline-none focus:!shadow-none focus-visible:!outline-none focus-visible:!shadow-none focus:ring-0 focus:ring-offset-0 focus-visible:ring-0 focus-visible:ring-offset-0"
        :auto-focus true
        :autoComplete "off"
        :autoCapitalize "off"
        :placeholder (input-placeholder)
        :ref #(when-not @input-ref (reset! input-ref %))
-       :on-change debounced-on-change
+       :on-change (fn [e]
+                    (let [new-value (.-value (.-target e))
+                          composing? (util/native-event-is-composing? e)]
+                      (handle-input-change state e new-value false)
+                      (when-not composing?
+                        (debounced-refresh-results))
+                      (when-let [on-change (:on-input-change opts)]
+                        (on-change new-value))))
        :on-blur (fn [_e]
                   (when-let [on-blur (:on-input-blur opts)]
                     (on-blur input)))
-       :on-composition-end debounced-composition-end
+       :on-composition-end (fn [e]
+                             (handle-input-change state e (.. e -target -value) false)
+                             (debounced-refresh-results))
        :default-value input}]]))
+
+(defn- tip-with-shortcut
+  [template shortcut & [shortcut-opts]]
+  (into [:div.flex.flex-row.gap-1.items-center.opacity-50.hover:opacity-100]
+        (interpolate-rich-text
+         template
+         [(shui/shortcut shortcut shortcut-opts)])))
 
 (defn rand-tip
   []
-  (rand-nth
-   [[:div.flex.flex-row.gap-1.items-center.opacity-50.hover:opacity-100
-     [:div "Type"]
-     (shui/shortcut "/")
-     [:div "to filter search results"]]
-    [:div.flex.flex-row.gap-1.items-center.opacity-50.hover:opacity-100
-     (shui/shortcut ["mod" "enter"] {:style :combo})
-     [:div "to open search in the sidebar"]]]))
+  (rand-nth [:filter-results :open-sidebar]))
 
-(rum/defcs tip <
-  {:init (fn [state]
-           (assoc state ::rand-tip (rand-tip)))}
-  [inner-state state]
-  (let [filter' @(::filter state)]
+(defn- tip-content
+  [tip-id]
+  (case tip-id
+    :open-sidebar (tip-with-shortcut (t :cmdk.tip/open-sidebar) ["mod" "enter"] {:style :combo})
+    (tip-with-shortcut (t :cmdk.tip/filter-results) "/")))
+
+(hsx/defc tip
+  [state]
+  (let [[filter'] (hooks/use-atom (::filter state))
+        tip-id (hooks/use-memo rand-tip [])]
     (cond
       filter'
-      [:div.flex.flex-row.gap-1.items-center.opacity-50.hover:opacity-100
-       [:div "Type"]
-       (shui/shortcut "esc")
-       [:div "to clear search filter"]]
+      (tip-with-shortcut (t :cmdk.tip/clear-filter) "esc")
 
       :else
-      (::rand-tip inner-state))))
+      (tip-content tip-id))))
 
-(rum/defc hint-button
+(hsx/defc hint-button
   [text shortcut opts]
-  (shui/button
-   (merge {:class "hint-button [&>span:first-child]:hover:opacity-100 opacity-40 hover:opacity-80"
-           :variant :ghost
-           :size  :sm}
-          opts)
-   [[:span.opacity-60 text]
-     ;; shortcut
-    (when (not-empty shortcut)
-      (let [has-modifier? (and (coll? shortcut)
-                               (some #(#{"shift" "ctrl" "alt" "cmd" "mod" "⌘" "⌥" "⌃"}
-                                       (string/lower-case (str %)))
-                                     shortcut))
-            style (if (and (> (count shortcut) 1) has-modifier?)
-                    :combo
-                    :auto)]
-        (shui/shortcut shortcut {:style style
-                                 :aria-hidden? true})))]))
+  (let [props (merge {:class "hint-button [&>span:first-child]:hover:opacity-100 opacity-40 hover:opacity-80"
+                      :variant :ghost
+                      :size  :sm}
+                     opts)
+        children (cond-> [[:span.opacity-60 text]]
+                   (not-empty shortcut)
+                   (conj (let [has-modifier? (and (coll? shortcut)
+                                                  (some #(#{"shift" "ctrl" "alt" "cmd" "mod" "⌘" "⌥" "⌃"}
+                                                          (string/lower-case (str %)))
+                                                        shortcut))
+                               style (if (and (> (count shortcut) 1) has-modifier?)
+                                       :combo
+                                       :auto)]
+                           (shui/shortcut shortcut {:style style
+                                                    :aria-hidden? true}))))]
+    (apply shui/button props children)))
 
-(rum/defc hints
-  [state]
-  (let [action (state->action state)
+(hsx/defc hints
+  [state fallback-item]
+  (let [action (state->action state fallback-item)
         button-fn (fn [text shortcut & {:as opts}]
                     (hint-button text shortcut
                                  {:on-click #(handle-action action (assoc state :opts opts) %)
                                   :muted    true}))]
-    (when action
-      [:div.hints
-       [:div.text-sm.leading-6
-        [:div.flex.flex-row.gap-1.items-center
-         [:div.font-medium.text-gray-12 "Tip:"]
-         (tip state)]]
+    [:div.hints
+     [:div.text-sm.leading-6
+      [:div.flex.flex-row.gap-1.items-center]
+      [:div.font-medium.text-gray-12 (t :cmdk.tip/label)
+       (tip state)]]
 
-       [:div.gap-2.hidden.md:flex {:style {:margin-right -6}}
-        (case action
-          :open
-          [:<>
-           (button-fn "Open" ["return"])
-           (button-fn "Open in sidebar" ["shift" "return"] {:open-sidebar? true})
-           (when (:source-block @(::highlighted-item state)) (button-fn "Copy ref" ["cmd" "c"]))]
+     [:div.gap-2.hidden.md:flex {:style {:margin-right -6}}
+      (case action
+        :open
+        [:<>
+         (button-fn (t :cmdk.action/open) ["return"])
+         (button-fn (t :cmdk.action/open-in-sidebar) ["shift" "return"] {:open-sidebar? true})
+         (when (:source-block (state->highlighted-item state fallback-item))
+           (button-fn (t :cmdk.action/copy-ref) ["cmd" "c"]))]
 
-          :search
-          [:<>
-           (button-fn "Search" ["return"])]
+        :search
+        [:<>
+         (button-fn (t :cmdk.action/search) ["return"])]
 
-          :trigger
-          [:<>
-           (button-fn "Trigger" ["return"])]
+        :trigger
+        [:<>
+         (button-fn (t :cmdk.action/trigger) ["return"])]
 
-          :create
-          [:<>
-           (button-fn "Create" ["return"])]
+        :create
+        [:<>
+         (button-fn (t :cmdk.action/create) ["return"])]
 
-          :filter
-          [:<>
-           (button-fn "Filter" ["return"])]
+        :filter
+        [:<>
+         (button-fn (t :cmdk.action/filter) ["return"])]
 
-          nil)]])))
+        :theme
+        [:<>
+         (button-fn (t :cmdk.action/apply-theme) ["return"])]
 
-(rum/defc search-only
+        nil)]]))
+
+(hsx/defc search-only
   [state group-name]
   [:div.flex.flex-row.gap-1.items-center
-   [:div "Search only:"]
+   [:div (t :cmdk.filter/only-label)]
    [:div group-name]
    (shui/button
     {:variant  :ghost
@@ -1191,11 +1293,14 @@
 
 (defn- cmdk-init-state
   "Initialize cmdk component state atoms."
-  [state]
+  [opts]
+  ;; Invalidate the commands cache so that each new CMDK session gets a fresh
+  ;; commands list from cp-handler/top-commands (plugins, graph state, etc. may
+  ;; have changed since the last session).
+  (reset! !commands-cache {:lang nil :commands nil})
   (let [raw-search-mode (:search/mode @state/state)
         search-mode (or raw-search-mode :global)
         search-args (:search/args @state/state)
-        opts (last (:rum/args state))
         {input :input filter-group :filter} (cmdk-state/build-initial-cmdk-search
                                              opts
                                              search-mode
@@ -1203,15 +1308,17 @@
                                              (state/get-current-repo))]
     (when (nil? raw-search-mode)
       (state/set-state! :search/mode :global))
-    (assoc state
-           ::ref (atom nil)
-           ::filter (atom filter-group)
-           ::input (atom input)
-           ::input-ref (atom nil)
-           ::all-items-cache (atom [])
-           ::scroll-container-ref (atom nil)
-           ::pending-scroll-item-idx (atom nil)
-           ::accel-start-ts (atom nil))))
+    {::ref (atom nil)
+     ::filter (atom filter-group)
+     ::input (atom input)
+     ::input-ref (atom nil)
+     ::all-items-cache (atom [])
+     ::scroll-container-ref (atom nil)
+     ::pending-scroll-item-idx (atom nil)
+     ::accel-start-ts (atom nil)
+     ::highlighted-item (atom nil)
+     ::focus-source (atom :keyboard)
+     ::results (atom default-results)}))
 
 (defn- cmdk-will-unmount
   "Clean up cmdk component: persist state, clear search mode."
@@ -1221,42 +1328,58 @@
   (state/set-state! :search/args nil)
   state)
 
-(rum/defcs cmdk
-  < rum/static
-  rum/reactive
-  {:will-mount
-   (fn [state]
-     (when-not (:sidebar? (last (:rum/args state)))
-       (shortcut/unlisten-all!))
-     state)
-
-   :will-unmount
-   (fn [state]
-     (when-not (:sidebar? (last (:rum/args state)))
-       (shortcut/listen-all!))
-     state)}
-  {:init cmdk-init-state
-   :will-unmount cmdk-will-unmount}
-  (mixins/event-mixin
-   (fn [state]
-     (let [ref @(::ref state)]
-       (mixins/on-key-down state {}
-                           {:target ref
-                            :all-handler (fn [e _key] (keydown-handler state e))})
-       (mixins/on-key-up state {} (fn [e _key]
-                                    (keyup-handler state e))))))
-  (rum/local nil ::highlighted-item)
-  (rum/local :keyboard ::focus-source)
-  (rum/local default-results ::results)
-  [state {:keys [sidebar?] :as opts}]
-  (let [*input (::input state)
-        search-mode (state/sub :search/mode)
-        group-filter (or (when (and (not (contains? #{:global :graph} search-mode)) (not (:sidebar? opts)))
+(hsx/defc cmdk
+  [{:keys [sidebar?] :as opts}]
+  (let [state (hooks/use-memo #(cmdk-init-state opts) [])
+        *input (::input state)
+        search-mode (state/use-sub :search/mode)
+        search-args (state/use-sub :search/args)
+        [filter'] (hooks/use-atom (::filter state))
+        [_results] (hooks/use-atom (::results state))
+        [_highlighted-item] (hooks/use-atom (::highlighted-item state))
+        [_focus-source] (hooks/use-atom (::focus-source state))
+        group-filter (or (when (and (not= :global search-mode) (not (:sidebar? opts)))
                            search-mode)
-                         (:group (rum/react (::filter state))))
-        results-ordered (state->results-ordered state search-mode)
+                         (:group filter'))
+        results-ordered (state->results-ordered state)
         all-items (mapcat last results-ordered)
         first-item (first all-items)]
+    (hooks/use-effect!
+     (fn []
+       (let [{input :input filter-group :filter} (cmdk-state/build-initial-cmdk-search
+                                                  opts
+                                                  (or search-mode :global)
+                                                  search-args
+                                                  (state/get-current-repo))]
+         (reset! (::input state) input)
+         (reset! (::filter state) filter-group)
+         (reset! (::highlighted-item state) nil)
+         (reset! (::focus-source state) :keyboard)
+         (reset! (::results state) default-results)
+         (when-let [input-ref @(::input-ref state)]
+           (set! (.-value input-ref) input))
+         (refresh-results! state)))
+     [search-mode search-args])
+    (hooks/use-effect!
+     (fn []
+       (when-not sidebar?
+         (shortcut/unlisten-all!))
+       #(do
+          (cmdk-will-unmount state)
+          (when-not sidebar?
+            (shortcut/listen-all!))))
+     [])
+    (hooks/use-effect!
+     (fn []
+       (when-let [ref @(::ref state)]
+         (let [keydown-fn #(keydown-handler state %)
+               keyup-fn #(keyup-handler state %)]
+           (.addEventListener ref "keydown" keydown-fn)
+           (.addEventListener js/window "keyup" keyup-fn)
+           #(do
+              (.removeEventListener ref "keydown" keydown-fn)
+              (.removeEventListener js/window "keyup" keyup-fn)))))
+     [])
     [:div.cp__cmdk {:ref #(when-not @(::ref state) (reset! (::ref state) %))
                     :class (cond-> "w-full h-full relative flex flex-col justify-start"
                              (not sidebar?) (str " rounded-lg"))}
@@ -1270,7 +1393,7 @@
 
       (when group-filter
         [:div.flex.flex-col.px-3.py-1.opacity-70.text-sm
-         (search-only state (string/capitalize (name group-filter)))])
+         (search-only state (group-label group-filter))])
 
       (let [items (filter
                    (fn [[_group-name group-key group-count _group-items]]
@@ -1288,15 +1411,14 @@
               (result-group state title group-key group-items first-item sidebar?)))
           [:div.flex.flex-col.p-4.opacity-50
            (when-not (string/blank? @*input)
-             "No matched results")]))]
-     (when-not sidebar? (hints state))]))
+             (t :search/no-result))]))]
+     (when-not sidebar? (hints state first-item))]))
 
-(rum/defc cmdk-modal [props]
+(hsx/defc cmdk-modal [props]
   [:div {:class "cp__cmdk__modal rounded-lg w-[90dvw] max-w-4xl relative"
          :data-keep-selection true}
    (cmdk props)])
 
-(rum/defc cmdk-block [props]
+(hsx/defc cmdk-block [props]
   [:div {:class "cp__cmdk__block rounded-md"}
    (cmdk props)])
-
